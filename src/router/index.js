@@ -8,6 +8,8 @@ import CitizenList from '../views/citizens/CitizenList.vue'
 import CitizenForm from '../views/citizens/CitizenForm.vue'
 import EmployeeList from '../views/employees/EmployeeList.vue'
 import EmployeeForm from '../views/employees/EmployeeForm.vue'
+import EquipmentList from '../views/equipments/EquipmentList.vue'
+import EquipmentForm from '../views/equipments/EquipmentForm.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -25,6 +27,9 @@ const router = createRouter({
     { path: '/employees', component: EmployeeList },
     { path: '/employees/new', component: EmployeeForm },
     { path: '/employees/:id/edit', component: EmployeeForm },
+    { path: '/equipments', component: EquipmentList },
+    { path: '/equipments/new', component: EquipmentForm },
+    { path: '/equipments/:id/edit', component: EquipmentForm },
   ],
 })
 
