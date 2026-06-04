@@ -6,7 +6,7 @@ import StatusBadge from '../../components/StatusBadge.vue'
 import SearchInput from '../../components/SearchInput.vue'
 
 const route = useRoute()
-const companyId = computed(() => Number(route.params.id))
+const companyId = computed(() => Number(route.params.companyId))
 
 const companyName = ref('')
 const equipments = ref([])
@@ -48,7 +48,7 @@ const filtered = computed(() => {
         <RouterLink :to="`/companies/${companyId}`" class="btn btn-outline-secondary btn-sm">
           <i class="bi bi-arrow-left me-1"></i>Voltar
         </RouterLink>
-        <RouterLink to="/equipments/new" class="btn btn-light btn-sm text-nowrap">
+        <RouterLink :to="`/companies/${companyId}/equipments/new`" class="btn btn-light btn-sm text-nowrap">
           <i class="bi bi-plus-lg me-1"></i>Novo
         </RouterLink>
       </div>
@@ -109,7 +109,7 @@ const filtered = computed(() => {
             <td class="text-end pe-4">
               <div class="btn-group btn-group-sm" role="group">
                 <RouterLink
-                  :to="`/equipments/${equipment.id}/edit`"
+                  :to="`/companies/${companyId}/equipments/${equipment.id}/edit`"
                   class="btn btn-outline-primary"
                   title="Editar"
                 >
