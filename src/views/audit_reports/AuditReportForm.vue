@@ -96,6 +96,14 @@ async function submit() {
 
             <div class="d-flex justify-content-end gap-2 mt-4">
               <RouterLink :to="`/constructions/${constructionId}`" class="btn btn-outline-secondary">Cancelar</RouterLink>
+              <a
+                v-if="isEdit"
+                :href="`/api/audit-reports/${constructionId}/${inspectionId}/export-pdf/`"
+                target="_blank"
+                class="btn btn-outline-danger"
+              >
+                <i class="bi bi-file-earmark-pdf me-1"></i>Exportar PDF
+              </a>
               <button type="submit" class="btn btn-primary" :disabled="loading">
                 <span v-if="loading" class="spinner-border spinner-border-sm me-1"></span>
                 <i v-else class="bi bi-check2-circle me-1"></i>
