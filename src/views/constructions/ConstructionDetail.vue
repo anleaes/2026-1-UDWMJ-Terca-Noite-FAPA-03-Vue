@@ -482,19 +482,30 @@ async function confirmDelete() {
               <td>{{ employeeMap[insp.employee] ?? '—' }}</td>
               <td><StatusBadge :value="insp.is_compliant" true-label="Sim" false-label="Não" /></td>
               <td>
-                <RouterLink
-                  :to="`/constructions/${constructionId}/inspections/${insp.id}/audit-report`"
-                  class="btn btn-outline-secondary btn-sm"
-                  :title="reportByInspection[insp.id] ? 'Ver Laudo' : 'Criar Laudo'"
-                >
-                  <i
-                    :class="
-                      reportByInspection[insp.id]
-                        ? 'bi bi-file-earmark-check'
-                        : 'bi bi-file-earmark-plus'
-                    "
-                  ></i>
-                </RouterLink>
+                <div class="d-flex gap-1">
+                  <RouterLink
+                    :to="`/constructions/${constructionId}/inspections/${insp.id}/audit-report`"
+                    class="btn btn-outline-secondary btn-sm"
+                    :title="reportByInspection[insp.id] ? 'Ver Laudo' : 'Criar Laudo'"
+                  >
+                    <i
+                      :class="
+                        reportByInspection[insp.id]
+                          ? 'bi bi-file-earmark-check'
+                          : 'bi bi-file-earmark-plus'
+                      "
+                    ></i>
+                  </RouterLink>
+                  <a
+                    v-if="reportByInspection[insp.id]"
+                    :href="`/api/audit-reports/${constructionId}/${insp.id}/export-pdf/`"
+                    target="_blank"
+                    class="btn btn-outline-danger btn-sm"
+                    title="Exportar PDF"
+                  >
+                    <i class="bi bi-file-earmark-pdf"></i>
+                  </a>
+                </div>
               </td>
               <td class="text-end pe-4">
                 <div class="btn-group btn-group-sm" role="group">
