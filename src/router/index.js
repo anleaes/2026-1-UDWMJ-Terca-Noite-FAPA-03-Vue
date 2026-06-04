@@ -2,6 +2,8 @@ import { createRouter, createWebHistory } from 'vue-router'
 import Dashboard from '../views/Dashboard.vue'
 import CompanyList from '../views/companies/CompanyList.vue'
 import CompanyForm from '../views/companies/CompanyForm.vue'
+import CompanyEmployees from '../views/companies/CompanyEmployees.vue'
+import CompanyEquipments from '../views/companies/CompanyEquipments.vue'
 import LocationList from '../views/locations/LocationList.vue'
 import LocationForm from '../views/locations/LocationForm.vue'
 import CitizenList from '../views/citizens/CitizenList.vue'
@@ -25,6 +27,8 @@ const router = createRouter({
     { path: '/companies', component: CompanyList },
     { path: '/companies/new', component: CompanyForm },
     { path: '/companies/:id/edit', component: CompanyForm },
+    { path: '/companies/:id/employees', component: CompanyEmployees },
+    { path: '/companies/:id/equipments', component: CompanyEquipments },
     { path: '/locations', component: LocationList },
     { path: '/locations/new', component: LocationForm },
     { path: '/locations/:id/edit', component: LocationForm },
