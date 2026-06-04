@@ -10,21 +10,30 @@ const router = useRouter()
 const { loading, error, fetchOne, save } = useCrud('/api/equipments/')
 const toast = useToast()
 
+const companyId = computed(() => (route.params.companyId ? Number(route.params.companyId) : null))
+const fromCompany = computed(() => !!companyId.value)
+
 const isEdit = computed(() => !!route.params.id)
+
+const cancelRoute = computed(() =>
+  fromCompany.value ? `/companies/${companyId.value}/equipments` : '/equipments',
+)
 
 const emptyForm = () => ({
   name: '',
   type: '',
   daily_rate: '',
-  company: '',
+  company: companyId.value ?? '',
   is_available: true,
 })
 const form = ref(emptyForm())
 
 const companies = ref([])
 onMounted(async () => {
-  const res = await fetch('/api/companies/')
-  companies.value = await res.json()
+  if (!fromCompany.value) {
+    const res = await fetch('/api/companies/')
+    companies.value = await res.json()
+  }
 })
 
 watch(
@@ -43,8 +52,10 @@ watch(
 async function submit() {
   const data = await save(form.value, isEdit.value ? route.params.id : null)
   if (data) {
-    toast.add(isEdit.value ? 'Equipamento atualizado com sucesso.' : 'Equipamento cadastrado com sucesso.')
-    router.push('/equipments')
+    toast.add(
+      isEdit.value ? 'Equipamento atualizado com sucesso.' : 'Equipamento cadastrado com sucesso.',
+    )
+    router.push(cancelRoute.value)
   }
 }
 </script>
@@ -82,7 +93,9 @@ async function submit() {
                 <label class="form-label">Diária (R$)</label>
                 <input v-model="form.daily_rate" type="number" step="0.01" class="form-control" />
               </div>
-              <div class="col-md-6">
+
+              <!-- Campo empresa: oculto quando vindo do contexto de empresa -->
+              <div v-if="!fromCompany" class="col-md-6">
                 <label class="form-label">Empresa</label>
                 <select v-model="form.company" class="form-select" required>
                   <option value="">Selecione...</option>
@@ -91,6 +104,7 @@ async function submit() {
                   </option>
                 </select>
               </div>
+
               <div class="col-12">
                 <div class="form-check form-switch">
                   <input
@@ -117,7 +131,7 @@ async function submit() {
             </Transition>
 
             <div class="d-flex justify-content-end gap-2 mt-4">
-              <RouterLink to="/equipments" class="btn btn-outline-secondary">Cancelar</RouterLink>
+              <RouterLink :to="cancelRoute" class="btn btn-outline-secondary">Cancelar</RouterLink>
               <button type="submit" class="btn btn-primary" :disabled="loading">
                 <span v-if="loading" class="spinner-border spinner-border-sm me-1"></span>
                 <i v-else class="bi bi-check2-circle me-1"></i>
