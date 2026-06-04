@@ -135,6 +135,13 @@ onMounted(fetchAll)
             <td class="text-end pe-4">
               <div class="btn-group btn-group-sm" role="group">
                 <RouterLink
+                  :to="`/constructions/${construction.id}`"
+                  class="btn btn-outline-info"
+                  title="Detalhe"
+                >
+                  <i class="bi bi-eye"></i>
+                </RouterLink>
+                <RouterLink
                   :to="`/constructions/${construction.id}/edit`"
                   class="btn btn-outline-primary"
                   title="Editar"
