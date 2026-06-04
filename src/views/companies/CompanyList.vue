@@ -75,7 +75,7 @@ onMounted(fetchAll)
             <td><span class="skeleton" style="width: 110px; height: 14px"></span></td>
             <td><span class="skeleton" style="width: 140px; height: 14px"></span></td>
             <td class="text-center"><span class="skeleton" style="width: 56px; height: 20px; border-radius: 8px"></span></td>
-            <td class="text-end pe-4"><span class="skeleton" style="width: 64px; height: 28px; border-radius: 6px"></span></td>
+            <td class="text-end pe-4"><span class="skeleton" style="width: 140px; height: 28px; border-radius: 6px"></span></td>
           </tr>
         </tbody>
       </table>
@@ -119,6 +119,20 @@ onMounted(fetchAll)
             </td>
             <td class="text-end pe-4">
               <div class="btn-group btn-group-sm" role="group">
+                <RouterLink
+                  :to="`/companies/${company.id}/employees`"
+                  class="btn btn-outline-success"
+                  title="Funcionários"
+                >
+                  <i class="bi bi-people-fill"></i>
+                </RouterLink>
+                <RouterLink
+                  :to="`/companies/${company.id}/equipments`"
+                  class="btn btn-outline-info"
+                  title="Equipamentos"
+                >
+                  <i class="bi bi-tools"></i>
+                </RouterLink>
                 <RouterLink
                   :to="`/companies/${company.id}/edit`"
                   class="btn btn-outline-primary"
