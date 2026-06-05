@@ -1,4 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { useAuth } from '../composables/useAuth'
+import LoginView from '../views/LoginView.vue'
 import Dashboard from '../views/Dashboard.vue'
 import CompanyList from '../views/companies/CompanyList.vue'
 import CompanyForm from '../views/companies/CompanyForm.vue'
@@ -23,6 +25,7 @@ import ContractForm from '../views/contracts/ContractForm.vue'
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
+    { path: '/login', component: LoginView },
     { path: '/', component: Dashboard },
     { path: '/companies', component: CompanyList },
     { path: '/companies/new', component: CompanyForm },
@@ -57,6 +60,13 @@ const router = createRouter({
     { path: '/constructions/:id/contracts/:contractId/edit', component: ContractForm },
     { path: '/constructions/:id', component: ConstructionDetail },
   ],
+})
+
+router.beforeEach(async (to) => {
+  if (to.path === '/login') return true
+  const { checkAuth } = useAuth()
+  const ok = await checkAuth()
+  if (!ok) return '/login'
 })
 
 export default router
