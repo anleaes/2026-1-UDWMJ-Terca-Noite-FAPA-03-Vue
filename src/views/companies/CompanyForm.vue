@@ -3,6 +3,7 @@ import { ref, computed, watch } from 'vue'
 import { useRoute, useRouter, RouterLink } from 'vue-router'
 import { useCrud } from '../../composables/useCrud'
 import { useToast } from '../../composables/useToast'
+import { maskCnpj, validateCnpj, maskPhone, validatePhone } from '../../composables/useMask'
 import AppCard from '../../components/AppCard.vue'
 
 const route = useRoute()
@@ -22,6 +23,9 @@ const emptyForm = () => ({
 
 const form = ref(emptyForm())
 
+const cnpjError = ref(null)
+const phoneError = ref(null)
+
 watch(
   () => route.params.id,
   async (id) => {
@@ -35,7 +39,27 @@ watch(
   { immediate: true },
 )
 
+function onCnpjInput(e) {
+  const masked = maskCnpj(e.target.value)
+  form.value.corporate_tax_id = masked
+  e.target.value = masked
+  cnpjError.value = form.value.corporate_tax_id.length === 18 ? validateCnpj(masked) : null
+}
+
+function onPhoneInput(e) {
+  const masked = maskPhone(e.target.value)
+  form.value.phone = masked
+  e.target.value = masked
+  const len = masked.replace(/\D/g, '').length
+  phoneError.value = len >= 10 ? validatePhone(masked) : null
+}
+
 async function submit() {
+  cnpjError.value = validateCnpj(form.value.corporate_tax_id)
+  phoneError.value = form.value.phone ? validatePhone(form.value.phone) : null
+
+  if (cnpjError.value || phoneError.value) return
+
   const data = await save(form.value, isEdit.value ? route.params.id : null)
   if (data) {
     toast.add(isEdit.value ? 'Empresa atualizada com sucesso.' : 'Empresa cadastrada com sucesso.')
@@ -60,14 +84,44 @@ async function submit() {
                 <label class="form-label">Razão Social</label>
                 <input v-model="form.corporate_name" type="text" class="form-control" required />
               </div>
+
               <div class="col-md-6">
                 <label class="form-label">CNPJ</label>
-                <input v-model="form.corporate_tax_id" type="text" class="form-control" required />
+                <input
+                  :value="form.corporate_tax_id"
+                  @input="onCnpjInput"
+                  type="text"
+                  inputmode="numeric"
+                  maxlength="18"
+                  placeholder="00.000.000/0000-00"
+                  class="form-control"
+                  :class="{
+                    'is-invalid': cnpjError !== null && cnpjError !== undefined && cnpjError !== false,
+                    'is-valid': cnpjError === null && form.corporate_tax_id.length === 18,
+                  }"
+                  required
+                />
+                <div v-if="cnpjError" class="invalid-feedback">{{ cnpjError }}</div>
               </div>
+
               <div class="col-md-6">
                 <label class="form-label">Telefone</label>
-                <input v-model="form.phone" type="text" class="form-control" />
+                <input
+                  :value="form.phone"
+                  @input="onPhoneInput"
+                  type="text"
+                  inputmode="numeric"
+                  maxlength="15"
+                  placeholder="(00) 99999-9999"
+                  class="form-control"
+                  :class="{
+                    'is-invalid': phoneError !== null && phoneError !== undefined && phoneError !== false,
+                    'is-valid': phoneError === null && form.phone.length >= 14,
+                  }"
+                />
+                <div v-if="phoneError" class="invalid-feedback">{{ phoneError }}</div>
               </div>
+
               <div class="col-12">
                 <label class="form-label">E-mail</label>
                 <input v-model="form.email" type="email" class="form-control" required />
@@ -111,3 +165,4 @@ async function submit() {
     </div>
   </div>
 </template>
+
