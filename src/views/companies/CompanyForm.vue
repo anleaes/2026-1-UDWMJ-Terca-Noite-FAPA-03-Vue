@@ -3,6 +3,7 @@ import { ref, computed, watch } from 'vue'
 import { useRoute, useRouter, RouterLink } from 'vue-router'
 import { useCrud } from '../../composables/useCrud'
 import { useToast } from '../../composables/useToast'
+import { vMaskCnpj, vMaskPhone } from '../../composables/useMask'
 import AppCard from '../../components/AppCard.vue'
 
 const route = useRoute()
@@ -35,7 +36,23 @@ watch(
   { immediate: true },
 )
 
+function syncCnpj() {
+  const input = document.getElementById('cnpjInput')
+  if (input) form.value.corporate_tax_id = input.value
+}
+
+function syncPhone() {
+  const input = document.getElementById('phoneInput')
+  if (input) form.value.phone = input.value
+}
+
 async function submit() {
+  syncCnpj()
+  syncPhone()
+
+  const cnpjInput = document.getElementById('cnpjInput')
+  if (cnpjInput && cnpjInput.classList.contains('is-invalid')) return
+
   const data = await save(form.value, isEdit.value ? route.params.id : null)
   if (data) {
     toast.add(isEdit.value ? 'Empresa atualizada com sucesso.' : 'Empresa cadastrada com sucesso.')
@@ -62,11 +79,28 @@ async function submit() {
               </div>
               <div class="col-md-6">
                 <label class="form-label">CNPJ</label>
-                <input v-model="form.corporate_tax_id" type="text" class="form-control" required />
+                <input
+                  id="cnpjInput"
+                  v-model="form.corporate_tax_id"
+                  v-mask-cnpj
+                  @mask-change="syncCnpj"
+                  type="text"
+                  placeholder="00.000.000/0000-00"
+                  class="form-control"
+                  required
+                />
               </div>
               <div class="col-md-6">
                 <label class="form-label">Telefone</label>
-                <input v-model="form.phone" type="text" class="form-control" />
+                <input
+                  id="phoneInput"
+                  v-model="form.phone"
+                  v-mask-phone
+                  @mask-change="syncPhone"
+                  type="text"
+                  placeholder="(00) 00000-0000"
+                  class="form-control"
+                />
               </div>
               <div class="col-12">
                 <label class="form-label">E-mail</label>

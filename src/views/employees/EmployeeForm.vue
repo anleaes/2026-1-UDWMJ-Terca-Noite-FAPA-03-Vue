@@ -3,6 +3,7 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute, useRouter, RouterLink } from 'vue-router'
 import { useCrud } from '../../composables/useCrud'
 import { useToast } from '../../composables/useToast'
+import { vMaskCpf, vMaskPhone } from '../../composables/useMask'
 import AppCard from '../../components/AppCard.vue'
 
 const route = useRoute()
@@ -55,7 +56,23 @@ watch(
   { immediate: true },
 )
 
+function syncCpf() {
+  const input = document.getElementById('cpfInput')
+  if (input) form.value.national_id = input.value
+}
+
+function syncPhone() {
+  const input = document.getElementById('phoneInput')
+  if (input) form.value.phone = input.value
+}
+
 async function submit() {
+  syncCpf()
+  syncPhone()
+
+  const cpfInput = document.getElementById('cpfInput')
+  if (cpfInput && cpfInput.classList.contains('is-invalid')) return
+
   const data = await save(form.value, isEdit.value ? route.params.id : null)
   if (data) {
     toast.add(
@@ -88,11 +105,28 @@ async function submit() {
               </div>
               <div class="col-md-6">
                 <label class="form-label">CPF</label>
-                <input v-model="form.national_id" type="text" class="form-control" required />
+                <input
+                  id="cpfInput"
+                  v-model="form.national_id"
+                  v-mask-cpf
+                  @mask-change="syncCpf"
+                  type="text"
+                  placeholder="000.000.000-00"
+                  class="form-control"
+                  required
+                />
               </div>
               <div class="col-md-6">
                 <label class="form-label">Telefone</label>
-                <input v-model="form.phone" type="text" class="form-control" />
+                <input
+                  id="phoneInput"
+                  v-model="form.phone"
+                  v-mask-phone
+                  @mask-change="syncPhone"
+                  type="text"
+                  placeholder="(00) 00000-0000"
+                  class="form-control"
+                />
               </div>
               <div class="col-12">
                 <label class="form-label">E-mail</label>
@@ -130,7 +164,6 @@ async function submit() {
                 <input v-model="form.salary" type="number" step="0.01" class="form-control" />
               </div>
 
-              <!-- Campo empresa: oculto quando vindo do contexto de empresa -->
               <div v-if="!fromCompany" class="col-md-6">
                 <label class="form-label">Empresa</label>
                 <select v-model="form.company" class="form-select" required>
