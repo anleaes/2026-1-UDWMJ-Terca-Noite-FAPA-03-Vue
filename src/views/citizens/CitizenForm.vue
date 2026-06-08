@@ -3,7 +3,7 @@ import { ref, computed, watch } from 'vue'
 import { useRoute, useRouter, RouterLink } from 'vue-router'
 import { useCrud } from '../../composables/useCrud'
 import { useToast } from '../../composables/useToast'
-import { maskCpf, validateCpf, maskPhone, validatePhone } from '../../composables/useMask'
+import { vMaskCpf, vMaskPhone } from '../../composables/useMask'
 import AppCard from '../../components/AppCard.vue'
 
 const route = useRoute()
@@ -25,9 +25,6 @@ const emptyForm = () => ({
 })
 const form = ref(emptyForm())
 
-const cpfError = ref(null)
-const phoneError = ref(null)
-
 watch(
   () => route.params.id,
   async (id) => {
@@ -41,26 +38,22 @@ watch(
   { immediate: true },
 )
 
-function onCpfInput(e) {
-  const masked = maskCpf(e.target.value)
-  form.value.national_id = masked
-  e.target.value = masked
-  cpfError.value = form.value.national_id.length === 14 ? validateCpf(masked) : null
+function syncCpf() {
+  const input = document.getElementById('cpfInput')
+  if (input) form.value.national_id = input.value
 }
 
-function onPhoneInput(e) {
-  const masked = maskPhone(e.target.value)
-  form.value.phone = masked
-  e.target.value = masked
-  const len = masked.replace(/\D/g, '').length
-  phoneError.value = len >= 10 ? validatePhone(masked) : null
+function syncPhone() {
+  const input = document.getElementById('phoneInput')
+  if (input) form.value.phone = input.value
 }
 
 async function submit() {
-  cpfError.value = validateCpf(form.value.national_id)
-  phoneError.value = form.value.phone ? validatePhone(form.value.phone) : null
+  syncCpf()
+  syncPhone()
 
-  if (cpfError.value || phoneError.value) return
+  const cpfInput = document.getElementById('cpfInput')
+  if (cpfInput && cpfInput.classList.contains('is-invalid')) return
 
   const data = await save(form.value, isEdit.value ? route.params.id : null)
   if (data) {
@@ -90,44 +83,31 @@ async function submit() {
                 <label class="form-label">Sobrenome</label>
                 <input v-model="form.last_name" type="text" class="form-control" required />
               </div>
-
               <div class="col-md-6">
                 <label class="form-label">CPF</label>
                 <input
-                  :value="form.national_id"
-                  @input="onCpfInput"
+                  id="cpfInput"
+                  v-model="form.national_id"
+                  v-mask-cpf
+                  @mask-change="syncCpf"
                   type="text"
-                  inputmode="numeric"
-                  maxlength="14"
                   placeholder="000.000.000-00"
                   class="form-control"
-                  :class="{
-                    'is-invalid': cpfError !== null && cpfError !== undefined && cpfError !== false,
-                    'is-valid': cpfError === null && form.national_id.length === 14,
-                  }"
                   required
                 />
-                <div v-if="cpfError" class="invalid-feedback">{{ cpfError }}</div>
               </div>
-
               <div class="col-md-6">
                 <label class="form-label">Telefone</label>
                 <input
-                  :value="form.phone"
-                  @input="onPhoneInput"
+                  id="phoneInput"
+                  v-model="form.phone"
+                  v-mask-phone
+                  @mask-change="syncPhone"
                   type="text"
-                  inputmode="numeric"
-                  maxlength="15"
-                  placeholder="(00) 99999-9999"
+                  placeholder="(00) 00000-0000"
                   class="form-control"
-                  :class="{
-                    'is-invalid': phoneError !== null && phoneError !== undefined && phoneError !== false,
-                    'is-valid': phoneError === null && form.phone.length >= 14,
-                  }"
                 />
-                <div v-if="phoneError" class="invalid-feedback">{{ phoneError }}</div>
               </div>
-
               <div class="col-12">
                 <label class="form-label">E-mail</label>
                 <input v-model="form.email" type="email" class="form-control" />
