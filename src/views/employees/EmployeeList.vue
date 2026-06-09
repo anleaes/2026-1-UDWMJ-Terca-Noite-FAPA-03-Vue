@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { useCrud } from '../../composables/useCrud'
+import { useCompanyMap } from '../../composables/useCompanyMap'
 import { positionOf } from './positions'
 import HeroHeader from '../../components/ui/HeroHeader.vue'
 import StatCard from '../../components/ui/StatCard.vue'
@@ -14,6 +15,7 @@ const router = useRouter()
 const $q = useQuasar()
 
 const search = ref('')
+const { companyMap, fetchCompanyMap } = useCompanyMap()
 
 const columns = [
   { name: 'name', label: 'Nome completo', field: 'first_name', align: 'left', sortable: true },
@@ -92,7 +94,7 @@ async function doDelete(employee) {
   }
 }
 
-onMounted(fetchAll)
+onMounted(() => Promise.all([fetchAll(), fetchCompanyMap()]))
 </script>
 
 <template>
@@ -152,7 +154,7 @@ onMounted(fetchAll)
 
         <template #body-cell-company="props">
           <q-td :props="props" class="text-grey-5">
-            {{ props.row.company_name ?? props.row.company ?? '—' }}
+            {{ companyMap[props.row.company] ?? '—' }}
           </q-td>
         </template>
 
