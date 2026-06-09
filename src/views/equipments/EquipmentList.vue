@@ -1,48 +1,81 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { RouterLink } from 'vue-router'
+import { useRouter } from 'vue-router'
+import { useQuasar } from 'quasar'
 import { useCrud } from '../../composables/useCrud'
-import { useToast } from '../../composables/useToast'
-import AppCard from '../../components/AppCard.vue'
-import StatusBadge from '../../components/StatusBadge.vue'
-import ConfirmModal from '../../components/ConfirmModal.vue'
-import SearchInput from '../../components/SearchInput.vue'
+import { typeOf } from './types'
+import HeroHeader from '../../components/ui/HeroHeader.vue'
+import StatCard from '../../components/ui/StatCard.vue'
+import SoftChip from '../../components/ui/SoftChip.vue'
+import TableSkeleton from '../../components/ui/TableSkeleton.vue'
 
 const { items: equipments, loading, fetchAll, remove } = useCrud('/api/equipments/')
-const toast = useToast()
+const router = useRouter()
+const $q = useQuasar()
 
 const search = ref('')
-const confirmTarget = ref(null)
 
-const typeMap = {
-  excavator:      { label: 'Escavadeira', cls: 'badge-soft-warning'   },
-  crane:          { label: 'Guindaste',   cls: 'badge-soft-info'      },
-  truck:          { label: 'Caminhão',    cls: 'badge-soft-secondary' },
-  bulldozer:      { label: 'Bulldozer',   cls: 'badge-soft-warning'   },
-  concrete_mixer: { label: 'Betoneira',   cls: 'badge-soft-secondary' },
-  compactor:      { label: 'Compactador', cls: 'badge-soft-secondary' },
-  other:          { label: 'Outro',       cls: 'badge-soft-secondary' },
-}
+const columns = [
+  { name: 'name', label: 'Nome', field: 'name', align: 'left', sortable: true },
+  { name: 'type', label: 'Tipo', field: 'type', align: 'left', sortable: true },
+  { name: 'daily_rate', label: 'Diária', field: 'daily_rate', align: 'left', sortable: true },
+  { name: 'company', label: 'Empresa', field: 'company_name', align: 'left', sortable: true },
+  { name: 'is_available', label: 'Disponível', field: 'is_available', align: 'center', sortable: true },
+  { name: 'actions', label: '', field: 'actions', align: 'right' },
+]
+
+const pagination = ref({ rowsPerPage: 8, sortBy: 'name' })
 
 const filtered = computed(() => {
   const q = search.value.toLowerCase().trim()
   if (!q) return equipments.value
-  return equipments.value.filter((e) => e.name.toLowerCase().includes(q))
+  return equipments.value.filter(
+    (e) =>
+      e.name.toLowerCase().includes(q) ||
+      typeOf(e.type).label.toLowerCase().includes(q) ||
+      (e.company_name ?? '').toLowerCase().includes(q),
+  )
 })
 
-function askDelete(equipment) {
-  confirmTarget.value = { id: equipment.id, name: equipment.name }
+const availableCount = computed(() => equipments.value.filter((e) => e.is_available).length)
+
+function goNew() {
+  router.push('/equipments/new')
 }
 
-async function confirmDelete() {
-  const { id, name } = confirmTarget.value
-  confirmTarget.value = null
-  const ok = await remove(id)
+function goEdit(id) {
+  router.push(`/equipments/${id}/edit`)
+}
+
+function askDelete(equipment) {
+  $q.dialog({
+    title: 'Confirmar exclusão',
+    message: `Tem certeza que deseja excluir o equipamento <strong>${equipment.name}</strong>?<br><span class="text-grey-5">Esta ação não pode ser desfeita.</span>`,
+    html: true,
+    dark: true,
+    cancel: { label: 'Cancelar', flat: true, color: 'grey-5' },
+    ok: { label: 'Excluir', unelevated: true, color: 'negative', icon: 'delete' },
+    persistent: true,
+  }).onOk(() => doDelete(equipment))
+}
+
+async function doDelete(equipment) {
+  const ok = await remove(equipment.id)
   if (ok !== null) {
-    equipments.value = equipments.value.filter((e) => e.id !== id)
-    toast.add(`"${name}" excluído com sucesso.`)
+    equipments.value = equipments.value.filter((e) => e.id !== equipment.id)
+    $q.notify({
+      type: 'positive',
+      message: `Equipamento "${equipment.name}" excluído.`,
+      icon: 'check_circle',
+      position: 'bottom-right',
+    })
   } else {
-    toast.add('Erro ao excluir equipamento.', 'error')
+    $q.notify({
+      type: 'negative',
+      message: 'Erro ao excluir equipamento.',
+      icon: 'error',
+      position: 'bottom-right',
+    })
   }
 }
 
@@ -50,101 +83,222 @@ onMounted(fetchAll)
 </script>
 
 <template>
-  <AppCard icon="bi-tools" title="Equipamentos" :count="equipments.length">
-    <template #actions>
-      <div class="d-flex gap-2 align-items-center">
-        <SearchInput v-model="search" placeholder="Buscar equipamento..." />
-        <RouterLink to="/equipments/new" class="btn btn-light btn-sm text-nowrap">
-          <i class="bi bi-plus-lg me-1"></i>Novo
-        </RouterLink>
-      </div>
-    </template>
+  <div class="eq-page">
+    <HeroHeader
+      v-model:search="search"
+      icon="precision_manufacturing"
+      title="Equipamentos"
+      subtitle="Maquinário e frota cadastrados"
+      search-placeholder="Buscar equipamento..."
+      new-label="Novo equipamento"
+      @new="goNew"
+    >
+      <template #stats>
+        <StatCard :value="equipments.length" label="Total" icon="precision_manufacturing" color="#818cf8" />
+        <StatCard :value="availableCount" label="Disponíveis" icon="check_circle" color="#34d399" />
+        <StatCard :value="equipments.length - availableCount" label="Indisponíveis" icon="remove_circle" color="#fb7185" />
+      </template>
+    </HeroHeader>
 
-    <div v-if="loading" class="table-responsive">
-      <table class="table table-hover align-middle mb-0">
-        <thead>
-          <tr>
-            <th class="ps-4">#</th>
-            <th>Nome</th>
-            <th>Tipo</th>
-            <th>Diária</th>
-            <th>Empresa</th>
-            <th>Disponível</th>
-            <th class="text-end pe-4">Ações</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="i in 5" :key="i">
-            <td class="ps-4"><span class="skeleton" style="width: 24px; height: 14px"></span></td>
-            <td><span class="skeleton" style="width: 150px; height: 14px"></span></td>
-            <td><span class="skeleton" style="width: 90px; height: 20px; border-radius: 20px"></span></td>
-            <td><span class="skeleton" style="width: 70px; height: 14px"></span></td>
-            <td><span class="skeleton" style="width: 120px; height: 14px"></span></td>
-            <td><span class="skeleton" style="width: 80px; height: 20px; border-radius: 20px"></span></td>
-            <td class="text-end pe-4">
-              <span class="skeleton" style="width: 64px; height: 28px; border-radius: 6px"></span>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+    <TableSkeleton v-if="loading" :columns="columns" :rows="6" />
 
-    <div v-else class="table-responsive">
-      <table class="table table-hover align-middle mb-0">
-        <thead>
-          <tr>
-            <th class="ps-4">#</th>
-            <th>Nome</th>
-            <th>Tipo</th>
-            <th>Diária</th>
-            <th>Empresa</th>
-            <th>Disponível</th>
-            <th class="text-end pe-4">Ações</th>
-          </tr>
-        </thead>
-        <TransitionGroup tag="tbody" name="list">
-          <tr v-if="filtered.length === 0" key="empty">
-            <td colspan="7" class="text-center py-5 text-muted">
-              <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+    <q-card v-else flat class="table-card">
+      <q-table
+        :rows="filtered"
+        :columns="columns"
+        row-key="id"
+        flat
+        dark
+        :pagination="pagination"
+        :rows-per-page-options="[8, 16, 30, 0]"
+        class="eq-table"
+        rows-per-page-label="Por página"
+      >
+        <template #body-cell-name="props">
+          <q-td :props="props">
+            <div class="name-cell">
+              <div class="type-tile" :style="{ background: typeOf(props.row.type).color + '22', color: typeOf(props.row.type).color }">
+                <q-icon :name="typeOf(props.row.type).icon" size="18px" />
+              </div>
+              <span class="name-text">{{ props.row.name }}</span>
+            </div>
+          </q-td>
+        </template>
+
+        <template #body-cell-type="props">
+          <q-td :props="props">
+            <SoftChip
+              :color="typeOf(props.row.type).color"
+              :icon="typeOf(props.row.type).icon"
+              :label="typeOf(props.row.type).label"
+            />
+          </q-td>
+        </template>
+
+        <template #body-cell-daily_rate="props">
+          <q-td :props="props" class="mono text-grey-4">
+            R$ {{ Number(props.row.daily_rate).toFixed(2) }}
+          </q-td>
+        </template>
+
+        <template #body-cell-company="props">
+          <q-td :props="props" class="text-grey-4">
+            {{ props.row.company_name ?? '—' }}
+          </q-td>
+        </template>
+
+        <template #body-cell-is_available="props">
+          <q-td :props="props">
+            <SoftChip
+              :color="props.row.is_available ? '#34d399' : '#94a3b8'"
+              :icon="props.row.is_available ? 'check_circle' : 'remove_circle'"
+              :label="props.row.is_available ? 'Disponível' : 'Indisponível'"
+            />
+          </q-td>
+        </template>
+
+        <template #body-cell-actions="props">
+          <q-td :props="props">
+            <div class="row-actions">
+              <q-btn flat round dense color="indigo-3" icon="edit" @click="goEdit(props.row.id)">
+                <q-tooltip>Editar</q-tooltip>
+              </q-btn>
+              <q-btn flat round dense color="red-4" icon="delete" @click="askDelete(props.row)">
+                <q-tooltip>Excluir</q-tooltip>
+              </q-btn>
+            </div>
+          </q-td>
+        </template>
+
+        <template #no-data>
+          <div class="empty">
+            <div class="empty-tile">
+              <q-icon name="precision_manufacturing" size="30px" />
+            </div>
+            <div class="empty-text">
               {{ search ? 'Nenhum equipamento encontrado.' : 'Nenhum equipamento cadastrado.' }}
-              <div v-if="!search" class="mt-2">
-                <RouterLink to="/equipments/new" class="btn btn-primary btn-sm">
-                  Cadastrar o primeiro
-                </RouterLink>
-              </div>
-            </td>
-          </tr>
-          <tr v-for="equipment in filtered" :key="equipment.id">
-            <td class="ps-4 text-muted">{{ equipment.id }}</td>
-            <td class="fw-semibold">{{ equipment.name }}</td>
-            <td><StatusBadge :value="equipment.type" :map="typeMap" /></td>
-            <td>R$ {{ Number(equipment.daily_rate).toFixed(2) }}</td>
-            <td>{{ equipment.company_name ?? equipment.company }}</td>
-            <td><StatusBadge :value="equipment.is_available" true-label="Disponível" false-label="Indisponível" /></td>
-            <td class="text-end pe-4">
-              <div class="btn-group btn-group-sm" role="group">
-                <RouterLink
-                  :to="`/equipments/${equipment.id}/edit`"
-                  class="btn btn-outline-primary"
-                  title="Editar"
-                >
-                  <i class="bi bi-pencil"></i>
-                </RouterLink>
-                <button class="btn btn-outline-danger" title="Excluir" @click="askDelete(equipment)">
-                  <i class="bi bi-trash"></i>
-                </button>
-              </div>
-            </td>
-          </tr>
-        </TransitionGroup>
-      </table>
-    </div>
-
-    <ConfirmModal
-      :show="!!confirmTarget"
-      :item-name="confirmTarget?.name"
-      @confirm="confirmDelete"
-      @cancel="confirmTarget = null"
-    />
-  </AppCard>
+            </div>
+            <q-btn
+              v-if="!search"
+              unelevated
+              no-caps
+              icon="add"
+              label="Cadastrar primeiro equipamento"
+              class="btn-accent q-mt-md"
+              @click="goNew"
+            />
+          </div>
+        </template>
+      </q-table>
+    </q-card>
+  </div>
 </template>
+
+<style scoped>
+.eq-page {
+  max-width: 1160px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.table-card {
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-card);
+}
+.eq-table {
+  background: transparent;
+}
+.eq-table :deep(thead th) {
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--text-3);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+  font-weight: 600;
+  border-bottom: 1px solid var(--border-subtle);
+  padding-top: 16px;
+  padding-bottom: 16px;
+}
+.eq-table :deep(tbody td) {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  padding-top: 12px;
+  padding-bottom: 12px;
+  font-size: 0.9rem;
+}
+.eq-table :deep(tbody tr) {
+  transition: background 0.15s ease;
+}
+.eq-table :deep(tbody tr:hover) {
+  background: rgba(99, 102, 241, 0.08);
+}
+.eq-table :deep(.q-table__bottom) {
+  border-top: 1px solid var(--border-subtle);
+  color: var(--text-3);
+}
+
+.mono {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.3px;
+}
+
+.name-cell {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.type-tile {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+.name-text {
+  font-weight: 600;
+  color: #e9edf5;
+}
+
+.row-actions {
+  display: inline-flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.18s var(--ease);
+}
+.eq-table :deep(tbody tr:hover) .row-actions,
+.row-actions:focus-within {
+  opacity: 1;
+}
+@media (hover: none) {
+  .row-actions {
+    opacity: 1;
+  }
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 56px 20px;
+  color: var(--text-3);
+}
+.empty-tile {
+  width: 64px;
+  height: 64px;
+  border-radius: 18px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: var(--grad-accent);
+  box-shadow: var(--shadow-icon);
+  margin-bottom: 16px;
+}
+.empty-text {
+  font-size: 1rem;
+}
+</style>
