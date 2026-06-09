@@ -11,6 +11,12 @@ provide(TOAST_KEY, toast)
 const route = useRoute()
 const router = useRouter()
 const sidebarOpen = ref(false)
+const collapsed = ref(localStorage.getItem('sidebarCollapsed') === '1')
+
+function toggleCollapse() {
+  collapsed.value = !collapsed.value
+  localStorage.setItem('sidebarCollapsed', collapsed.value ? '1' : '0')
+}
 
 const { username, logout } = useAuth()
 
@@ -43,13 +49,22 @@ async function handleLogout() {
       <RouterView />
     </div>
 
-    <div v-else class="app-layout">
+    <div v-else class="app-layout" :class="{ 'sidebar-collapsed': collapsed }">
       <div v-if="sidebarOpen" class="sidebar-overlay" @click="sidebarOpen = false"></div>
 
       <aside class="sidebar" :class="{ 'sidebar-open': sidebarOpen }">
         <div class="sidebar-brand">
-          <i class="bi bi-building-fill me-2"></i>
-          <span>InfraApp</span>
+          <span class="brand-id">
+            <i class="bi bi-building-fill brand-logo"></i>
+            <span class="brand-name">InfraApp</span>
+          </span>
+          <button
+            class="sidebar-toggle"
+            :title="collapsed ? 'Expandir menu' : 'Recolher menu'"
+            @click="toggleCollapse"
+          >
+            <i class="bi" :class="collapsed ? 'bi-chevron-right' : 'bi-chevron-left'"></i>
+          </button>
         </div>
 
         <nav class="sidebar-nav">
@@ -62,6 +77,7 @@ async function handleLogout() {
             exact-active-class=""
             class="sidebar-link"
             :class="{ active: isActive(item) }"
+            :title="item.label"
             @click="sidebarOpen = false"
           >
             <i :class="`bi ${item.icon}`"></i>
@@ -74,8 +90,8 @@ async function handleLogout() {
             <i class="bi bi-person-circle me-2"></i>
             <span class="sidebar-username">{{ username }}</span>
           </div>
-          <button class="sidebar-logout" @click="handleLogout">
-            <i class="bi bi-box-arrow-right me-2"></i>Sair
+          <button class="sidebar-logout" :title="collapsed ? 'Sair' : ''" @click="handleLogout">
+            <i class="bi bi-box-arrow-right"></i><span class="logout-label">Sair</span>
           </button>
         </div>
       </aside>
