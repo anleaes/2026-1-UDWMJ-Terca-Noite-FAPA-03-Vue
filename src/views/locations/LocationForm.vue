@@ -3,6 +3,7 @@ import { ref, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { useCrud } from '../../composables/useCrud'
+import FormHeader from '../../components/ui/FormHeader.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -62,21 +63,12 @@ async function submit() {
 <template>
   <div class="form-page">
     <q-card flat class="form-card">
-      <header class="form-header">
-        <div class="form-header-glow"></div>
-        <div class="form-header-content">
-          <q-btn flat round dense color="white" icon="arrow_back" to="/locations" class="back-btn">
-            <q-tooltip>Voltar</q-tooltip>
-          </q-btn>
-          <div class="form-icon">
-            <q-icon name="location_on" size="24px" />
-          </div>
-          <div>
-            <h1 class="form-title">{{ isEdit ? 'Editar Local' : 'Novo Local' }}</h1>
-            <p class="form-subtitle">Preencha os dados do local de obra</p>
-          </div>
-        </div>
-      </header>
+      <FormHeader
+        :icon="isEdit ? 'edit_location_alt' : 'add_location_alt'"
+        :title="isEdit ? 'Editar Local' : 'Novo Local'"
+        subtitle="Preencha os dados do local de obra"
+        back-to="/locations"
+      />
 
       <q-form @submit.prevent="submit" class="form-body">
         <div class="section-label">Dados do Local</div>
@@ -127,12 +119,12 @@ async function submit() {
           </div>
 
           <div class="col-12 col-md-6">
-            <div class="paved-box" :class="{ on: form.is_paved }">
-              <div class="paved-info">
+            <div class="toggle-box" :class="{ on: form.is_paved }">
+              <div class="toggle-info">
                 <q-icon name="add_road" size="22px" />
                 <div>
-                  <div class="paved-title">Pavimentado</div>
-                  <div class="paved-hint">O local possui pavimentação?</div>
+                  <div class="toggle-title">Pavimentado</div>
+                  <div class="toggle-hint">O local possui pavimentação?</div>
                 </div>
               </div>
               <q-toggle v-model="form.is_paved" color="indigo-4" size="lg" />
@@ -158,7 +150,7 @@ async function submit() {
             no-caps
             icon="check"
             label="Salvar"
-            class="btn-save"
+            class="btn-accent"
             :loading="loading"
           />
         </div>
@@ -174,62 +166,11 @@ async function submit() {
 }
 
 .form-card {
-  border-radius: 22px;
+  border-radius: var(--radius-card);
   overflow: hidden;
-  background: #181b26;
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  box-shadow: 0 18px 50px rgba(8, 10, 20, 0.45);
-}
-
-.form-header {
-  position: relative;
-  overflow: hidden;
-  padding: 24px 28px;
-  background:
-    radial-gradient(120% 160% at 0% 0%, #2b2f55 0%, transparent 55%),
-    linear-gradient(135deg, #1b1e2e 0%, #14161f 100%);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-}
-.form-header-glow {
-  position: absolute;
-  top: -80px;
-  right: -40px;
-  width: 260px;
-  height: 260px;
-  background: radial-gradient(circle, rgba(99, 102, 241, 0.4) 0%, transparent 70%);
-  filter: blur(20px);
-}
-.form-header-content {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-.back-btn {
-  background: rgba(255, 255, 255, 0.06);
-}
-.form-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 14px;
-  display: grid;
-  place-items: center;
-  color: #fff;
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
-  box-shadow: 0 8px 22px rgba(99, 102, 241, 0.5);
-}
-.form-title {
-  margin: 0;
-  font-size: 1.35rem;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  color: #f1f5f9;
-}
-.form-subtitle {
-  margin: 2px 0 0;
-  font-size: 0.82rem;
-  color: #8b93a7;
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-card);
 }
 
 .form-body {
@@ -239,41 +180,41 @@ async function submit() {
   font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 1px;
-  color: #7c8499;
+  color: var(--text-3);
   font-weight: 600;
   margin-bottom: 16px;
 }
 
-.paved-box {
+.toggle-box {
   display: flex;
   align-items: center;
   justify-content: space-between;
   height: 56px;
   padding: 0 16px;
-  border-radius: 12px;
+  border-radius: var(--radius-sm);
   background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  transition: all 0.2s ease;
+  border: 1px solid var(--border-soft);
+  transition: all 0.2s var(--ease);
 }
-.paved-box.on {
+.toggle-box.on {
   background: rgba(99, 102, 241, 0.12);
-  border-color: rgba(99, 102, 241, 0.4);
+  border-color: var(--border-accent);
 }
-.paved-info {
+.toggle-info {
   display: flex;
   align-items: center;
   gap: 12px;
   color: #cbd2e0;
 }
-.paved-title {
+.toggle-title {
   font-size: 0.9rem;
   font-weight: 600;
   color: #e9edf5;
   line-height: 1.1;
 }
-.paved-hint {
+.toggle-hint {
   font-size: 0.74rem;
-  color: #7c8499;
+  color: var(--text-3);
 }
 
 .api-error {
@@ -288,14 +229,9 @@ async function submit() {
   gap: 10px;
   margin-top: 28px;
   padding-top: 20px;
-  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  border-top: 1px solid var(--border-subtle);
 }
-.btn-save {
-  border-radius: 12px;
+.btn-accent {
   padding: 8px 22px;
-  font-weight: 600;
-  color: #fff;
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
-  box-shadow: 0 8px 20px rgba(99, 102, 241, 0.4);
 }
 </style>
