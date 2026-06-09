@@ -1,15 +1,16 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
-import { useRoute, useRouter, RouterLink } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
+import { useQuasar } from 'quasar'
 import { useCrud } from '../../composables/useCrud'
-import { useToast } from '../../composables/useToast'
-import { vMaskCpf, vMaskPhone } from '../../composables/useMask'
-import AppCard from '../../components/AppCard.vue'
+import { useMask } from '../../composables/useMask'
+import FormHeader from '../../components/ui/FormHeader.vue'
 
 const route = useRoute()
 const router = useRouter()
+const $q = useQuasar()
 const { loading, error, fetchOne, save } = useCrud('/api/citizens/')
-const toast = useToast()
+const { isValidCPF } = useMask()
 
 const isEdit = computed(() => !!route.params.id)
 
@@ -38,116 +39,222 @@ watch(
   { immediate: true },
 )
 
-function syncCpf() {
-  const input = document.getElementById('cpfInput')
-  if (input) form.value.national_id = input.value
-}
+const apiErrors = computed(() => {
+  if (!error.value) return []
+  return Object.entries(error.value).map(
+    ([field, msgs]) => `${field}: ${Array.isArray(msgs) ? msgs.join(', ') : msgs}`,
+  )
+})
 
-function syncPhone() {
-  const input = document.getElementById('phoneInput')
-  if (input) form.value.phone = input.value
-}
+const required = (v) => (!!v && String(v).trim().length > 0) || 'Campo obrigatório'
+const cpfRule = (v) => isValidCPF(v || '') || 'CPF inválido'
+const emailRule = (v) => !v || /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v) || 'E-mail inválido'
 
 async function submit() {
-  syncCpf()
-  syncPhone()
-
-  const cpfInput = document.getElementById('cpfInput')
-  if (cpfInput && cpfInput.classList.contains('is-invalid')) return
-
   const data = await save(form.value, isEdit.value ? route.params.id : null)
   if (data) {
-    toast.add(isEdit.value ? 'Cidadão atualizado com sucesso.' : 'Cidadão cadastrado com sucesso.')
+    $q.notify({
+      type: 'positive',
+      message: isEdit.value ? 'Cidadão atualizado com sucesso.' : 'Cidadão cadastrado com sucesso.',
+      icon: 'check_circle',
+      position: 'bottom-right',
+    })
     router.push('/citizens')
   }
 }
 </script>
 
 <template>
-  <div class="row justify-content-center">
-    <div class="col-lg-8">
-      <AppCard
-        :icon="isEdit ? 'bi-person-vcard' : 'bi-person-add'"
-        :title="isEdit ? 'Editar Cidadão' : 'Cadastro de Cidadão'"
-      >
-        <div class="p-4">
-          <form @submit.prevent="submit" novalidate>
-            <h6 class="text-uppercase text-muted mb-3 small fw-semibold">Dados pessoais</h6>
+  <div class="form-page">
+    <q-card flat class="form-card">
+      <FormHeader
+        :icon="isEdit ? 'badge' : 'person_add'"
+        :title="isEdit ? 'Editar Cidadão' : 'Novo Cidadão'"
+        subtitle="Preencha os dados do cidadão"
+        back-to="/citizens"
+      />
 
-            <div class="row g-3">
-              <div class="col-md-6">
-                <label class="form-label">Nome</label>
-                <input v-model="form.first_name" type="text" class="form-control" required />
-              </div>
-              <div class="col-md-6">
-                <label class="form-label">Sobrenome</label>
-                <input v-model="form.last_name" type="text" class="form-control" required />
-              </div>
-              <div class="col-md-6">
-                <label class="form-label">CPF</label>
-                <input
-                  id="cpfInput"
-                  v-model="form.national_id"
-                  v-mask-cpf
-                  @mask-change="syncCpf"
-                  type="text"
-                  placeholder="000.000.000-00"
-                  class="form-control"
-                  required
-                />
-              </div>
-              <div class="col-md-6">
-                <label class="form-label">Telefone</label>
-                <input
-                  id="phoneInput"
-                  v-model="form.phone"
-                  v-mask-phone
-                  @mask-change="syncPhone"
-                  type="text"
-                  placeholder="(00) 00000-0000"
-                  class="form-control"
-                />
-              </div>
-              <div class="col-12">
-                <label class="form-label">E-mail</label>
-                <input v-model="form.email" type="email" class="form-control" />
-              </div>
-              <div class="col-12">
-                <label class="form-label">Endereço</label>
-                <input v-model="form.address" type="text" class="form-control" />
-              </div>
-              <div class="col-md-6">
-                <label class="form-label">Nº de Cadastro</label>
-                <input v-model="form.registration_number" type="text" class="form-control" />
-              </div>
-              <div class="col-md-6">
-                <label class="form-label">Associação de Bairro</label>
-                <input v-model="form.neighborhood_association" type="text" class="form-control" />
-              </div>
-            </div>
+      <q-form @submit.prevent="submit" class="form-body">
+        <div class="section-label">Dados pessoais</div>
+        <div class="row q-col-gutter-md">
+          <div class="col-12 col-md-6">
+            <q-input
+              v-model="form.first_name"
+              dark
+              label="Nome *"
+              outlined
+              color="indigo-3"
+              :rules="[required]"
+              lazy-rules
+            >
+              <template #prepend><q-icon name="person" /></template>
+            </q-input>
+          </div>
 
-            <Transition name="slide-down">
-              <div v-if="error" class="alert alert-danger mt-4">
-                <strong><i class="bi bi-exclamation-circle me-1"></i>Verifique os campos:</strong>
-                <ul class="mb-0 mt-1">
-                  <li v-for="(msgs, field) in error" :key="field">
-                    {{ field }}: {{ Array.isArray(msgs) ? msgs.join(', ') : msgs }}
-                  </li>
-                </ul>
-              </div>
-            </Transition>
+          <div class="col-12 col-md-6">
+            <q-input
+              v-model="form.last_name"
+              dark
+              label="Sobrenome *"
+              outlined
+              color="indigo-3"
+              :rules="[required]"
+              lazy-rules
+            >
+              <template #prepend><q-icon name="person_outline" /></template>
+            </q-input>
+          </div>
 
-            <div class="d-flex justify-content-end gap-2 mt-4">
-              <RouterLink to="/citizens" class="btn btn-outline-secondary">Cancelar</RouterLink>
-              <button type="submit" class="btn btn-primary" :disabled="loading">
-                <span v-if="loading" class="spinner-border spinner-border-sm me-1"></span>
-                <i v-else class="bi bi-check2-circle me-1"></i>
-                Salvar
-              </button>
-            </div>
-          </form>
+          <div class="col-12 col-md-6">
+            <q-input
+              v-model="form.national_id"
+              dark
+              label="CPF *"
+              outlined
+              color="indigo-3"
+              mask="###.###.###-##"
+              placeholder="000.000.000-00"
+              :rules="[required, cpfRule]"
+              lazy-rules
+            >
+              <template #prepend><q-icon name="badge" /></template>
+            </q-input>
+          </div>
+
+          <div class="col-12 col-md-6">
+            <q-input
+              v-model="form.phone"
+              dark
+              label="Telefone"
+              outlined
+              color="indigo-3"
+              mask="(##) #####-####"
+              placeholder="(00) 00000-0000"
+            >
+              <template #prepend><q-icon name="call" /></template>
+            </q-input>
+          </div>
         </div>
-      </AppCard>
-    </div>
+
+        <div class="section-label q-mt-lg">Contato</div>
+        <div class="row q-col-gutter-md">
+          <div class="col-12 col-md-6">
+            <q-input
+              v-model="form.email"
+              dark
+              type="email"
+              label="E-mail"
+              outlined
+              color="indigo-3"
+              :rules="[emailRule]"
+              lazy-rules
+            >
+              <template #prepend><q-icon name="mail" /></template>
+            </q-input>
+          </div>
+
+          <div class="col-12 col-md-6">
+            <q-input v-model="form.address" dark label="Endereço" outlined color="indigo-3">
+              <template #prepend><q-icon name="home" /></template>
+            </q-input>
+          </div>
+        </div>
+
+        <div class="section-label q-mt-lg">Cadastro</div>
+        <div class="row q-col-gutter-md">
+          <div class="col-12 col-md-6">
+            <q-input
+              v-model="form.registration_number"
+              dark
+              label="Nº de Cadastro"
+              outlined
+              color="indigo-3"
+            >
+              <template #prepend><q-icon name="tag" /></template>
+            </q-input>
+          </div>
+
+          <div class="col-12 col-md-6">
+            <q-input
+              v-model="form.neighborhood_association"
+              dark
+              label="Associação de Bairro"
+              outlined
+              color="indigo-3"
+            >
+              <template #prepend><q-icon name="diversity_3" /></template>
+            </q-input>
+          </div>
+        </div>
+
+        <q-slide-transition>
+          <q-banner v-if="apiErrors.length" class="api-error q-mt-lg" rounded>
+            <template #avatar><q-icon name="error" color="negative" /></template>
+            <div class="text-weight-medium" style="color: #fb7185">Verifique os campos:</div>
+            <ul class="q-my-xs q-pl-md">
+              <li v-for="(msg, i) in apiErrors" :key="i">{{ msg }}</li>
+            </ul>
+          </q-banner>
+        </q-slide-transition>
+
+        <div class="form-actions">
+          <q-btn flat no-caps color="grey-5" label="Cancelar" to="/citizens" />
+          <q-btn
+            type="submit"
+            unelevated
+            no-caps
+            icon="check"
+            label="Salvar"
+            class="btn-accent"
+            :loading="loading"
+          />
+        </div>
+      </q-form>
+    </q-card>
   </div>
 </template>
+
+<style scoped>
+.form-page {
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.form-card {
+  border-radius: var(--radius-card);
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-card);
+}
+
+.form-body {
+  padding: 26px 28px 28px;
+}
+.section-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-3);
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+
+.api-error {
+  background: rgba(251, 113, 133, 0.08);
+  border: 1px solid rgba(251, 113, 133, 0.3);
+  color: #e9edf5;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 28px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border-subtle);
+}
+.btn-accent {
+  padding: 8px 22px;
+}
+</style>
