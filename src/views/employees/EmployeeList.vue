@@ -1,27 +1,30 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { RouterLink } from 'vue-router'
+import { useRouter } from 'vue-router'
+import { useQuasar } from 'quasar'
 import { useCrud } from '../../composables/useCrud'
-import { useToast } from '../../composables/useToast'
-import AppCard from '../../components/AppCard.vue'
-import StatusBadge from '../../components/StatusBadge.vue'
-import ConfirmModal from '../../components/ConfirmModal.vue'
-import SearchInput from '../../components/SearchInput.vue'
+import { positionOf } from './positions'
+import HeroHeader from '../../components/ui/HeroHeader.vue'
+import StatCard from '../../components/ui/StatCard.vue'
+import SoftChip from '../../components/ui/SoftChip.vue'
+import TableSkeleton from '../../components/ui/TableSkeleton.vue'
 
 const { items: employees, loading, fetchAll, remove } = useCrud('/api/employees/')
-const toast = useToast()
+const router = useRouter()
+const $q = useQuasar()
 
 const search = ref('')
-const confirmTarget = ref(null)
 
-const positionMap = {
-  engineer:  { label: 'Engenheiro(a)',   cls: 'badge-soft-info'      },
-  architect: { label: 'Arquiteto(a)',    cls: 'badge-soft-info'      },
-  foreman:   { label: 'Mestre de Obras', cls: 'badge-soft-warning'   },
-  inspector: { label: 'Fiscal',          cls: 'badge-soft-secondary' },
-  worker:    { label: 'Operário(a)',     cls: 'badge-soft-secondary' },
-  manager:   { label: 'Gerente',         cls: 'badge-soft-success'   },
-}
+const columns = [
+  { name: 'name', label: 'Nome completo', field: 'first_name', align: 'left', sortable: true },
+  { name: 'national_id', label: 'CPF', field: 'national_id', align: 'left', sortable: true },
+  { name: 'position', label: 'Cargo', field: 'position', align: 'left', sortable: true },
+  { name: 'company', label: 'Empresa', field: 'company_name', align: 'left', sortable: true },
+  { name: 'is_active', label: 'Ativo', field: 'is_active', align: 'center', sortable: true },
+  { name: 'actions', label: '', field: 'actions', align: 'right' },
+]
+
+const pagination = ref({ rowsPerPage: 8, sortBy: 'name' })
 
 const filtered = computed(() => {
   const q = search.value.toLowerCase().trim()
@@ -30,23 +33,62 @@ const filtered = computed(() => {
     (e) =>
       e.first_name.toLowerCase().includes(q) ||
       e.last_name.toLowerCase().includes(q) ||
-      e.national_id?.toLowerCase().includes(q),
+      e.national_id?.toLowerCase().includes(q) ||
+      positionOf(e.position).label.toLowerCase().includes(q),
   )
 })
 
-function askDelete(employee) {
-  confirmTarget.value = { id: employee.id, name: `${employee.first_name} ${employee.last_name}` }
+const activeCount = computed(() => employees.value.filter((e) => e.is_active).length)
+const positionsCount = computed(
+  () => new Set(employees.value.map((e) => e.position).filter(Boolean)).size,
+)
+
+function fullName(e) {
+  return `${e.first_name} ${e.last_name}`.trim()
 }
 
-async function confirmDelete() {
-  const { id, name } = confirmTarget.value
-  confirmTarget.value = null
-  const ok = await remove(id)
+function initials(e) {
+  return `${e.first_name?.[0] ?? ''}${e.last_name?.[0] ?? ''}`.toUpperCase() || '?'
+}
+
+function goNew() {
+  router.push('/employees/new')
+}
+
+function goEdit(id) {
+  router.push(`/employees/${id}/edit`)
+}
+
+function askDelete(employee) {
+  $q.dialog({
+    title: 'Confirmar exclusão',
+    message: `Tem certeza que deseja excluir o funcionário <strong>${fullName(employee)}</strong>?<br><span class="text-grey-5">Esta ação não pode ser desfeita.</span>`,
+    html: true,
+    dark: true,
+    cancel: { label: 'Cancelar', flat: true, color: 'grey-5' },
+    ok: { label: 'Excluir', unelevated: true, color: 'negative', icon: 'delete' },
+    persistent: true,
+  }).onOk(() => doDelete(employee))
+}
+
+async function doDelete(employee) {
+  const name = fullName(employee)
+  const ok = await remove(employee.id)
   if (ok !== null) {
-    employees.value = employees.value.filter((e) => e.id !== id)
-    toast.add(`"${name}" excluído com sucesso.`)
+    employees.value = employees.value.filter((e) => e.id !== employee.id)
+    $q.notify({
+      type: 'positive',
+      message: `Funcionário "${name}" excluído.`,
+      icon: 'check_circle',
+      position: 'bottom-right',
+    })
   } else {
-    toast.add('Erro ao excluir funcionário.', 'error')
+    $q.notify({
+      type: 'negative',
+      message: 'Erro ao excluir funcionário.',
+      icon: 'error',
+      position: 'bottom-right',
+    })
   }
 }
 
@@ -54,101 +96,223 @@ onMounted(fetchAll)
 </script>
 
 <template>
-  <AppCard icon="bi-people-fill" title="Funcionários" :count="employees.length">
-    <template #actions>
-      <div class="d-flex gap-2 align-items-center">
-        <SearchInput v-model="search" placeholder="Buscar funcionário..." />
-        <RouterLink to="/employees/new" class="btn btn-light btn-sm text-nowrap">
-          <i class="bi bi-plus-lg me-1"></i>Novo
-        </RouterLink>
-      </div>
-    </template>
+  <div class="emp-page">
+    <HeroHeader
+      v-model:search="search"
+      icon="badge"
+      title="Funcionários"
+      subtitle="Equipe das empresas contratadas"
+      search-placeholder="Buscar por nome, CPF, cargo..."
+      new-label="Novo funcionário"
+      @new="goNew"
+    >
+      <template #stats>
+        <StatCard :value="employees.length" label="Total" icon="groups" color="#818cf8" />
+        <StatCard :value="activeCount" label="Ativos" icon="check_circle" color="#34d399" />
+        <StatCard :value="positionsCount" label="Cargos" icon="work" color="#22d3ee" />
+      </template>
+    </HeroHeader>
 
-    <div v-if="loading" class="table-responsive">
-      <table class="table table-hover align-middle mb-0">
-        <thead>
-          <tr>
-            <th class="ps-4">#</th>
-            <th>Nome completo</th>
-            <th>CPF</th>
-            <th>Cargo</th>
-            <th>Empresa</th>
-            <th>Ativo</th>
-            <th class="text-end pe-4">Ações</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="i in 5" :key="i">
-            <td class="ps-4"><span class="skeleton" style="width: 24px; height: 14px"></span></td>
-            <td><span class="skeleton" style="width: 160px; height: 14px"></span></td>
-            <td><span class="skeleton" style="width: 110px; height: 14px"></span></td>
-            <td><span class="skeleton" style="width: 80px; height: 20px; border-radius: 20px"></span></td>
-            <td><span class="skeleton" style="width: 120px; height: 14px"></span></td>
-            <td><span class="skeleton" style="width: 60px; height: 20px; border-radius: 20px"></span></td>
-            <td class="text-end pe-4">
-              <span class="skeleton" style="width: 64px; height: 28px; border-radius: 6px"></span>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+    <TableSkeleton v-if="loading" :columns="columns" :rows="6" />
 
-    <div v-else class="table-responsive">
-      <table class="table table-hover align-middle mb-0">
-        <thead>
-          <tr>
-            <th class="ps-4">#</th>
-            <th>Nome completo</th>
-            <th>CPF</th>
-            <th>Cargo</th>
-            <th>Empresa</th>
-            <th>Ativo</th>
-            <th class="text-end pe-4">Ações</th>
-          </tr>
-        </thead>
-        <TransitionGroup tag="tbody" name="list">
-          <tr v-if="filtered.length === 0" key="empty">
-            <td colspan="7" class="text-center py-5 text-muted">
-              <i class="bi bi-inbox fs-1 d-block mb-2"></i>
-              {{ search ? 'Nenhum funcionário encontrado.' : 'Nenhum funcionário cadastrado.' }}
-              <div v-if="!search" class="mt-2">
-                <RouterLink to="/employees/new" class="btn btn-primary btn-sm">
-                  Cadastrar o primeiro
-                </RouterLink>
-              </div>
-            </td>
-          </tr>
-          <tr v-for="employee in filtered" :key="employee.id">
-            <td class="ps-4 text-muted">{{ employee.id }}</td>
-            <td class="fw-semibold">{{ employee.first_name }} {{ employee.last_name }}</td>
-            <td>{{ employee.national_id }}</td>
-            <td><StatusBadge :value="employee.position" :map="positionMap" /></td>
-            <td>{{ employee.company_name ?? employee.company }}</td>
-            <td><StatusBadge :value="employee.is_active" true-label="Sim" false-label="Não" /></td>
-            <td class="text-end pe-4">
-              <div class="btn-group btn-group-sm" role="group">
-                <RouterLink
-                  :to="`/employees/${employee.id}/edit`"
-                  class="btn btn-outline-primary"
-                  title="Editar"
-                >
-                  <i class="bi bi-pencil"></i>
-                </RouterLink>
-                <button class="btn btn-outline-danger" title="Excluir" @click="askDelete(employee)">
-                  <i class="bi bi-trash"></i>
-                </button>
-              </div>
-            </td>
-          </tr>
-        </TransitionGroup>
-      </table>
-    </div>
+    <q-card v-else flat class="table-card">
+      <q-table
+        :rows="filtered"
+        :columns="columns"
+        row-key="id"
+        flat
+        dark
+        :pagination="pagination"
+        :rows-per-page-options="[8, 16, 30, 0]"
+        class="emp-table"
+        rows-per-page-label="Por página"
+      >
+        <template #body-cell-name="props">
+          <q-td :props="props">
+            <div class="name-cell">
+              <div class="avatar">{{ initials(props.row) }}</div>
+              <span class="name-text">{{ fullName(props.row) }}</span>
+            </div>
+          </q-td>
+        </template>
 
-    <ConfirmModal
-      :show="!!confirmTarget"
-      :item-name="confirmTarget?.name"
-      @confirm="confirmDelete"
-      @cancel="confirmTarget = null"
-    />
-  </AppCard>
+        <template #body-cell-national_id="props">
+          <q-td :props="props" class="mono text-grey-5">{{ props.row.national_id || '—' }}</q-td>
+        </template>
+
+        <template #body-cell-position="props">
+          <q-td :props="props">
+            <SoftChip
+              :color="positionOf(props.row.position).color"
+              :icon="positionOf(props.row.position).icon"
+              :label="positionOf(props.row.position).label"
+            />
+          </q-td>
+        </template>
+
+        <template #body-cell-company="props">
+          <q-td :props="props" class="text-grey-5">
+            {{ props.row.company_name ?? props.row.company ?? '—' }}
+          </q-td>
+        </template>
+
+        <template #body-cell-is_active="props">
+          <q-td :props="props">
+            <SoftChip
+              :color="props.row.is_active ? '#34d399' : '#94a3b8'"
+              :icon="props.row.is_active ? 'check_circle' : 'remove_circle'"
+              :label="props.row.is_active ? 'Sim' : 'Não'"
+            />
+          </q-td>
+        </template>
+
+        <template #body-cell-actions="props">
+          <q-td :props="props">
+            <div class="row-actions">
+              <q-btn flat round dense color="indigo-3" icon="edit" @click="goEdit(props.row.id)">
+                <q-tooltip>Editar</q-tooltip>
+              </q-btn>
+              <q-btn flat round dense color="red-4" icon="delete" @click="askDelete(props.row)">
+                <q-tooltip>Excluir</q-tooltip>
+              </q-btn>
+            </div>
+          </q-td>
+        </template>
+
+        <template #no-data>
+          <div class="empty">
+            <div class="empty-tile">
+              <q-icon name="person_off" size="30px" />
+            </div>
+            <div class="empty-text">
+              {{ search ? 'Nenhum funcionário encontrado.' : 'Nenhum funcionário cadastrado ainda.' }}
+            </div>
+            <q-btn
+              v-if="!search"
+              unelevated
+              no-caps
+              icon="add"
+              label="Cadastrar o primeiro"
+              class="btn-accent q-mt-md"
+              @click="goNew"
+            />
+          </div>
+        </template>
+      </q-table>
+    </q-card>
+  </div>
 </template>
+
+<style scoped>
+.emp-page {
+  max-width: 1160px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.table-card {
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-card);
+}
+.emp-table {
+  background: transparent;
+}
+.emp-table :deep(thead th) {
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--text-3);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+  font-weight: 600;
+  border-bottom: 1px solid var(--border-subtle);
+  padding-top: 16px;
+  padding-bottom: 16px;
+}
+.emp-table :deep(tbody td) {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  padding-top: 12px;
+  padding-bottom: 12px;
+  font-size: 0.9rem;
+}
+.emp-table :deep(tbody tr) {
+  transition: background 0.15s ease;
+}
+.emp-table :deep(tbody tr:hover) {
+  background: rgba(99, 102, 241, 0.08);
+}
+.emp-table :deep(.q-table__bottom) {
+  border-top: 1px solid var(--border-subtle);
+  color: var(--text-3);
+}
+
+.mono {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.3px;
+}
+
+.name-cell {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #fff;
+  background: var(--grad-accent);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.35);
+}
+.name-text {
+  font-weight: 600;
+  color: #e9edf5;
+}
+
+.row-actions {
+  display: inline-flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.18s var(--ease);
+}
+.emp-table :deep(tbody tr:hover) .row-actions,
+.row-actions:focus-within {
+  opacity: 1;
+}
+@media (hover: none) {
+  .row-actions {
+    opacity: 1;
+  }
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 56px 20px;
+  color: var(--text-3);
+}
+.empty-tile {
+  width: 64px;
+  height: 64px;
+  border-radius: 18px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: var(--grad-accent);
+  box-shadow: var(--shadow-icon);
+  margin-bottom: 16px;
+}
+.empty-text {
+  font-size: 1rem;
+}
+</style>
