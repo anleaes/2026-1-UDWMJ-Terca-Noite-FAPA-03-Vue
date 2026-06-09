@@ -1,13 +1,15 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { useRoute, RouterLink } from 'vue-router'
-import { useToast } from '../../composables/useToast'
-import AppCard from '../../components/AppCard.vue'
-import StatusBadge from '../../components/StatusBadge.vue'
-import ConfirmModal from '../../components/ConfirmModal.vue'
+import { useRoute, useRouter } from 'vue-router'
+import { useQuasar } from 'quasar'
+import { statusOf, typeOf, statusFoundOf } from './constructions'
+import HeroHeader from '../../components/ui/HeroHeader.vue'
+import SoftChip from '../../components/ui/SoftChip.vue'
+import TableSkeleton from '../../components/ui/TableSkeleton.vue'
 
 const route = useRoute()
-const toast = useToast()
+const router = useRouter()
+const $q = useQuasar()
 const constructionId = computed(() => Number(route.params.id))
 
 const construction = ref(null)
@@ -21,31 +23,34 @@ const equipmentMap = ref({})
 const reportByInspection = ref({})
 
 const pageLoading = ref(true)
-const confirmTarget = ref(null)
 
-const statusMap = {
-  planned: { label: 'Planejada', cls: 'badge-soft-secondary' },
-  in_progress: { label: 'Em Andamento', cls: 'badge-soft-info' },
-  paused: { label: 'Pausada', cls: 'badge-soft-warning' },
-  completed: { label: 'Concluída', cls: 'badge-soft-success' },
-  cancelled: { label: 'Cancelada', cls: 'badge-soft-danger' },
-}
+const contractColumns = [
+  { name: 'number', label: 'Número', field: 'number', align: 'left', sortable: true },
+  { name: 'signing_date', label: 'Data Assinatura', field: 'signing_date', align: 'left', sortable: true },
+  { name: 'value', label: 'Valor', field: 'value', align: 'left', sortable: true },
+  { name: 'validity_days', label: 'Validade (dias)', field: 'validity_days', align: 'left', sortable: true },
+  { name: 'company', label: 'Empresa', field: 'company', align: 'left', sortable: true },
+  { name: 'is_active', label: 'Ativo', field: 'is_active', align: 'center', sortable: true },
+  { name: 'actions', label: '', field: 'actions', align: 'right' },
+]
 
-const typeMap = {
-  road: { label: 'Rodovia', cls: 'badge-soft-warning' },
-  bridge: { label: 'Ponte', cls: 'badge-soft-info' },
-  building: { label: 'Edifício', cls: 'badge-soft-secondary' },
-  sanitation: { label: 'Saneamento', cls: 'badge-soft-success' },
-  urban: { label: 'Urbanização', cls: 'badge-soft-info' },
-  other: { label: 'Outro', cls: 'badge-soft-secondary' },
-}
+const allocationColumns = [
+  { name: 'equipment', label: 'Equipamento', field: 'equipment', align: 'left', sortable: true },
+  { name: 'allocation_date', label: 'Data Alocação', field: 'allocation_date', align: 'left', sortable: true },
+  { name: 'return_date', label: 'Data Devolução', field: 'return_date', align: 'left', sortable: true },
+  { name: 'usage_cost', label: 'Custo de Uso', field: 'usage_cost', align: 'left', sortable: true },
+  { name: 'actions', label: '', field: 'actions', align: 'right' },
+]
 
-const statusFoundMap = {
-  regular: { label: 'Regular', cls: 'badge-soft-success' },
-  irregular: { label: 'Irregular', cls: 'badge-soft-danger' },
-  partial: { label: 'Parcialmente Regular', cls: 'badge-soft-warning' },
-  critical: { label: 'Crítico', cls: 'badge-soft-danger' },
-}
+const inspectionColumns = [
+  { name: 'visit_date', label: 'Data da Visita', field: 'visit_date', align: 'left', sortable: true },
+  { name: 'status_found', label: 'Status', field: 'status_found', align: 'left', sortable: true },
+  { name: 'score', label: 'Pontuação', field: 'score', align: 'left', sortable: true },
+  { name: 'employee', label: 'Fiscal', field: 'employee', align: 'left', sortable: true },
+  { name: 'is_compliant', label: 'Conforme', field: 'is_compliant', align: 'center', sortable: true },
+  { name: 'audit_report', label: 'Laudo', field: 'audit_report', align: 'center' },
+  { name: 'actions', label: '', field: 'actions', align: 'right' },
+]
 
 onMounted(async () => {
   const [
@@ -94,448 +99,514 @@ function fmtCurrency(v) {
 }
 
 function askDelete(item, type, name) {
-  confirmTarget.value = { id: item.id, type, name }
+  $q.dialog({
+    title: 'Confirmar exclusão',
+    message: `Excluir <strong>${name}</strong>?`,
+    html: true,
+    dark: true,
+    persistent: true,
+    cancel: { label: 'Cancelar', flat: true, color: 'grey-5' },
+    ok: { label: 'Excluir', unelevated: true, color: 'negative', icon: 'delete' },
+  }).onOk(() => doDelete(item, type, name))
 }
 
-async function confirmDelete() {
-  const { id, type, name } = confirmTarget.value
-  confirmTarget.value = null
-
+async function doDelete(item, type, name) {
   const endpointMap = {
     contract: '/api/contracts/',
     allocation: '/api/constructionequipments/',
     inspection: '/api/inspections/',
   }
 
-  const res = await fetch(`${endpointMap[type]}${id}/`, { method: 'DELETE' })
+  const res = await fetch(`${endpointMap[type]}${item.id}/`, { method: 'DELETE' })
   if (res.ok || res.status === 204) {
-    if (type === 'contract') contracts.value = contracts.value.filter((c) => c.id !== id)
-    if (type === 'allocation') allocations.value = allocations.value.filter((a) => a.id !== id)
-    if (type === 'inspection') inspections.value = inspections.value.filter((i) => i.id !== id)
-    toast.add(`"${name}" excluído com sucesso.`)
+    if (type === 'contract') contracts.value = contracts.value.filter((c) => c.id !== item.id)
+    if (type === 'allocation') allocations.value = allocations.value.filter((a) => a.id !== item.id)
+    if (type === 'inspection') inspections.value = inspections.value.filter((i) => i.id !== item.id)
+    $q.notify({ type: 'positive', message: `"${name}" excluído.`, icon: 'check_circle', position: 'bottom-right' })
   } else {
-    toast.add('Erro ao excluir.', 'error')
+    $q.notify({ type: 'negative', message: 'Erro ao excluir.', icon: 'error', position: 'bottom-right' })
   }
 }
 </script>
 
 <template>
   <div>
-    <AppCard icon="bi-cone-striped" :title="construction?.title ?? 'Carregando...'">
-      <template #actions>
-        <div class="d-flex gap-2">
-          <RouterLink :to="`/constructions/${constructionId}/edit`" class="btn btn-light btn-sm">
-            <i class="bi bi-pencil me-1"></i>Editar
-          </RouterLink>
-          <RouterLink to="/constructions" class="btn btn-outline-secondary btn-sm">
-            <i class="bi bi-arrow-left me-1"></i>Voltar
-          </RouterLink>
-        </div>
-      </template>
-
-      <div v-if="pageLoading" class="p-4">
-        <div class="row g-3">
-          <div v-for="i in 6" :key="i" class="col-md-3">
-            <span class="skeleton d-block mb-1" style="width: 60px; height: 12px"></span>
-            <span
-              class="skeleton d-block"
-              style="width: 110px; height: 20px; border-radius: 20px"
-            ></span>
-          </div>
-        </div>
-      </div>
-
-      <div v-else class="p-4">
-        <div class="row g-3">
-          <div class="col-md-3">
-            <small class="text-muted d-block mb-1">Status</small>
-            <StatusBadge :value="construction.status" :map="statusMap" />
-          </div>
-          <div class="col-md-3">
-            <small class="text-muted d-block mb-1">Tipo</small>
-            <StatusBadge :value="construction.type" :map="typeMap" />
-          </div>
-          <div class="col-md-3">
-            <small class="text-muted d-block mb-1">Início</small>
-            <span>{{ construction.start_date ?? '—' }}</span>
-          </div>
-          <div class="col-md-3">
-            <small class="text-muted d-block mb-1">Término Previsto</small>
-            <span>{{ construction.expected_end_date ?? '—' }}</span>
-          </div>
-          <div class="col-md-6">
-            <small class="text-muted d-block mb-1">Empresa</small>
-            <span class="fw-semibold">{{ companyMap[construction.company] ?? '—' }}</span>
-          </div>
-          <div class="col-md-6">
-            <small class="text-muted d-block mb-1">Valor Total</small>
-            <span class="fw-semibold">{{ fmtCurrency(construction.total_value) }}</span>
-          </div>
-        </div>
-      </div>
-    </AppCard>
-
-    <AppCard
-      icon="bi-file-earmark-text-fill"
-      title="Contratos"
-      :count="contracts.length"
-      class="mt-4"
+    <HeroHeader
+      icon="construction"
+      :title="construction?.title ?? 'Carregando...'"
+      :subtitle="construction ? typeOf(construction.type).label : ''"
+      :show-search="false"
+      back-to="/constructions"
     >
       <template #actions>
-        <RouterLink
+        <q-btn
+          unelevated
+          no-caps
+          icon="edit"
+          label="Editar"
+          class="btn-accent"
+          :to="`/constructions/${constructionId}/edit`"
+        />
+      </template>
+    </HeroHeader>
+
+    <q-card flat class="info-card q-mt-lg">
+      <q-card-section v-if="pageLoading">
+        <div class="row q-col-gutter-md">
+          <div v-for="i in 6" :key="i" class="col-6 col-md-3">
+            <div class="skeleton-label"></div>
+            <div class="skeleton-value"></div>
+          </div>
+        </div>
+      </q-card-section>
+      <q-card-section v-else>
+        <div class="row q-col-gutter-lg">
+          <div class="col-6 col-md-3">
+            <p class="info-label">Status</p>
+            <SoftChip
+              :color="statusOf(construction.status).color"
+              :icon="statusOf(construction.status).icon"
+              :label="statusOf(construction.status).label"
+            />
+          </div>
+          <div class="col-6 col-md-3">
+            <p class="info-label">Tipo</p>
+            <SoftChip
+              :color="typeOf(construction.type).color"
+              :icon="typeOf(construction.type).icon"
+              :label="typeOf(construction.type).label"
+            />
+          </div>
+          <div class="col-6 col-md-3">
+            <p class="info-label">Início</p>
+            <span class="info-value mono">{{ construction.start_date ?? '—' }}</span>
+          </div>
+          <div class="col-6 col-md-3">
+            <p class="info-label">Término Previsto</p>
+            <span class="info-value mono">{{ construction.expected_end_date ?? '—' }}</span>
+          </div>
+          <div class="col-12 col-md-6">
+            <p class="info-label">Empresa</p>
+            <span class="info-value">{{ companyMap[construction.company] ?? '—' }}</span>
+          </div>
+          <div class="col-12 col-md-6">
+            <p class="info-label">Valor Total</p>
+            <span class="info-value mono">{{ fmtCurrency(construction.total_value) }}</span>
+          </div>
+        </div>
+      </q-card-section>
+    </q-card>
+
+    <q-card flat class="section-card q-mt-lg">
+      <div class="section-header">
+        <div class="row items-center no-wrap" style="gap: 10px">
+          <div class="section-icon">
+            <q-icon name="description" size="18px" />
+          </div>
+          <span class="section-title">Contratos</span>
+          <q-badge v-if="!pageLoading" rounded :label="contracts.length" color="indigo-7" />
+        </div>
+        <q-btn
+          unelevated
+          no-caps
+          dense
+          icon="add"
+          label="Novo"
+          class="btn-accent"
+          size="sm"
           :to="`/constructions/${constructionId}/contracts/new`"
-          class="btn btn-light btn-sm"
-        >
-          <i class="bi bi-plus-lg me-1"></i>Novo
-        </RouterLink>
-      </template>
-
-      <div v-if="pageLoading" class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
-          <thead>
-            <tr>
-              <th class="ps-4">#</th>
-              <th>Número</th>
-              <th>Data Assinatura</th>
-              <th>Valor</th>
-              <th>Validade (dias)</th>
-              <th>Empresa</th>
-              <th>Ativo</th>
-              <th class="text-end pe-4">Ações</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="i in 2" :key="i">
-              <td class="ps-4"><span class="skeleton" style="width: 24px; height: 14px"></span></td>
-              <td><span class="skeleton" style="width: 100px; height: 14px"></span></td>
-              <td><span class="skeleton" style="width: 80px; height: 14px"></span></td>
-              <td><span class="skeleton" style="width: 90px; height: 14px"></span></td>
-              <td><span class="skeleton" style="width: 50px; height: 14px"></span></td>
-              <td><span class="skeleton" style="width: 120px; height: 14px"></span></td>
-              <td>
-                <span
-                  class="skeleton"
-                  style="width: 60px; height: 20px; border-radius: 20px"
-                ></span>
-              </td>
-              <td class="text-end pe-4">
-                <span class="skeleton" style="width: 64px; height: 28px; border-radius: 6px"></span>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+        />
       </div>
 
-      <div v-else class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
-          <thead>
-            <tr>
-              <th class="ps-4">#</th>
-              <th>Número</th>
-              <th>Data Assinatura</th>
-              <th>Valor</th>
-              <th>Validade (dias)</th>
-              <th>Empresa</th>
-              <th>Ativo</th>
-              <th class="text-end pe-4">Ações</th>
-            </tr>
-          </thead>
-          <TransitionGroup tag="tbody" name="list">
-            <tr v-if="contracts.length === 0" key="empty-contracts">
-              <td colspan="8" class="text-center py-4 text-muted">
-                <i class="bi bi-inbox fs-2 d-block mb-1"></i>Nenhum contrato cadastrado.
-                <div class="mt-2">
-                  <RouterLink
-                    :to="`/constructions/${constructionId}/contracts/new`"
-                    class="btn btn-primary btn-sm"
-                    >Cadastrar o primeiro</RouterLink
-                  >
-                </div>
-              </td>
-            </tr>
-            <tr v-for="contract in contracts" :key="contract.id">
-              <td class="ps-4 text-muted">{{ contract.id }}</td>
-              <td class="fw-semibold">{{ contract.number }}</td>
-              <td>{{ contract.signing_date }}</td>
-              <td>{{ fmtCurrency(contract.value) }}</td>
-              <td>{{ contract.validity_days }}</td>
-              <td>{{ companyMap[contract.company] ?? '—' }}</td>
-              <td>
-                <StatusBadge
-                  :value="contract.is_active"
-                  true-label="Ativo"
-                  false-label="Encerrado"
-                />
-              </td>
-              <td class="text-end pe-4">
-                <div class="btn-group btn-group-sm" role="group">
-                  <RouterLink
-                    :to="`/constructions/${constructionId}/contracts/${contract.id}/edit`"
-                    class="btn btn-outline-primary"
-                    title="Editar"
-                  >
-                    <i class="bi bi-pencil"></i>
-                  </RouterLink>
-                  <button
-                    class="btn btn-outline-danger"
-                    title="Excluir"
-                    @click="askDelete(contract, 'contract', contract.number)"
-                  >
-                    <i class="bi bi-trash"></i>
-                  </button>
-                </div>
-              </td>
-            </tr>
-          </TransitionGroup>
-        </table>
-      </div>
-    </AppCard>
+      <TableSkeleton v-if="pageLoading" :columns="contractColumns" :rows="2" />
+      <q-table
+        v-else
+        dark
+        flat
+        :rows="contracts"
+        :columns="contractColumns"
+        :pagination="{ rowsPerPage: 5 }"
+        row-key="id"
+      >
+        <template #body-cell-number="props">
+          <q-td :props="props">
+            <span class="text-weight-medium">{{ props.row.number }}</span>
+          </q-td>
+        </template>
 
-    <AppCard icon="bi-tools" title="Equipamentos Alocados" :count="allocations.length" class="mt-4">
-      <template #actions>
-        <RouterLink
+        <template #body-cell-value="props">
+          <q-td :props="props">
+            <span class="mono">{{ fmtCurrency(props.row.value) }}</span>
+          </q-td>
+        </template>
+
+        <template #body-cell-company="props">
+          <q-td :props="props">{{ companyMap[props.row.company] ?? '—' }}</q-td>
+        </template>
+
+        <template #body-cell-is_active="props">
+          <q-td :props="props">
+            <SoftChip
+              :color="props.row.is_active ? '#34d399' : '#94a3b8'"
+              :icon="props.row.is_active ? 'check_circle' : 'remove_circle'"
+              :label="props.row.is_active ? 'Ativo' : 'Encerrado'"
+            />
+          </q-td>
+        </template>
+
+        <template #body-cell-actions="props">
+          <q-td :props="props">
+            <div class="row-actions">
+              <q-btn
+                flat round dense icon="edit" color="indigo-3"
+                :to="`/constructions/${constructionId}/contracts/${props.row.id}/edit`"
+              >
+                <q-tooltip>Editar</q-tooltip>
+              </q-btn>
+              <q-btn
+                flat round dense icon="delete" color="negative"
+                @click="askDelete(props.row, 'contract', props.row.number)"
+              >
+                <q-tooltip>Excluir</q-tooltip>
+              </q-btn>
+            </div>
+          </q-td>
+        </template>
+
+        <template #no-data>
+          <div class="full-width column flex-center empty-state">
+            <div class="empty-tile"><q-icon name="description" size="28px" /></div>
+            <p class="q-mt-md q-mb-xs" style="color: var(--text-2)">Nenhum contrato cadastrado.</p>
+            <q-btn
+              class="btn-accent q-mt-sm"
+              unelevated no-caps
+              label="Cadastrar o primeiro"
+              icon="add"
+              size="sm"
+              :to="`/constructions/${constructionId}/contracts/new`"
+            />
+          </div>
+        </template>
+      </q-table>
+    </q-card>
+
+    <q-card flat class="section-card q-mt-lg">
+      <div class="section-header">
+        <div class="row items-center no-wrap" style="gap: 10px">
+          <div class="section-icon">
+            <q-icon name="hardware" size="18px" />
+          </div>
+          <span class="section-title">Equipamentos Alocados</span>
+          <q-badge v-if="!pageLoading" rounded :label="allocations.length" color="indigo-7" />
+        </div>
+        <q-btn
+          unelevated
+          no-caps
+          dense
+          icon="add"
+          label="Alocar"
+          class="btn-accent"
+          size="sm"
           :to="`/constructions/${constructionId}/equipments/new`"
-          class="btn btn-light btn-sm"
-        >
-          <i class="bi bi-plus-lg me-1"></i>Alocar
-        </RouterLink>
-      </template>
-
-      <div v-if="pageLoading" class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
-          <thead>
-            <tr>
-              <th class="ps-4">#</th>
-              <th>Equipamento</th>
-              <th>Data Alocação</th>
-              <th>Data Devolução</th>
-              <th>Custo de Uso</th>
-              <th class="text-end pe-4">Ações</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="i in 2" :key="i">
-              <td class="ps-4"><span class="skeleton" style="width: 24px; height: 14px"></span></td>
-              <td><span class="skeleton" style="width: 130px; height: 14px"></span></td>
-              <td><span class="skeleton" style="width: 80px; height: 14px"></span></td>
-              <td><span class="skeleton" style="width: 80px; height: 14px"></span></td>
-              <td><span class="skeleton" style="width: 90px; height: 14px"></span></td>
-              <td class="text-end pe-4">
-                <span class="skeleton" style="width: 64px; height: 28px; border-radius: 6px"></span>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+        />
       </div>
 
-      <div v-else class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
-          <thead>
-            <tr>
-              <th class="ps-4">#</th>
-              <th>Equipamento</th>
-              <th>Data Alocação</th>
-              <th>Data Devolução</th>
-              <th>Custo de Uso</th>
-              <th class="text-end pe-4">Ações</th>
-            </tr>
-          </thead>
-          <TransitionGroup tag="tbody" name="list">
-            <tr v-if="allocations.length === 0" key="empty-alloc">
-              <td colspan="6" class="text-center py-4 text-muted">
-                <i class="bi bi-inbox fs-2 d-block mb-1"></i>Nenhum equipamento alocado.
-                <div class="mt-2">
-                  <RouterLink
-                    :to="`/constructions/${constructionId}/equipments/new`"
-                    class="btn btn-primary btn-sm"
-                    >Alocar o primeiro</RouterLink
-                  >
-                </div>
-              </td>
-            </tr>
-            <tr v-for="alloc in allocations" :key="alloc.id">
-              <td class="ps-4 text-muted">{{ alloc.id }}</td>
-              <td class="fw-semibold">{{ equipmentMap[alloc.equipment] ?? alloc.equipment }}</td>
-              <td>{{ alloc.allocation_date }}</td>
-              <td>{{ alloc.return_date ?? '—' }}</td>
-              <td>{{ fmtCurrency(alloc.usage_cost) }}</td>
-              <td class="text-end pe-4">
-                <div class="btn-group btn-group-sm" role="group">
-                  <RouterLink
-                    :to="`/constructions/${constructionId}/equipments/${alloc.id}/edit`"
-                    class="btn btn-outline-primary"
-                    title="Editar"
-                  >
-                    <i class="bi bi-pencil"></i>
-                  </RouterLink>
-                  <button
-                    class="btn btn-outline-danger"
-                    title="Excluir"
-                    @click="
-                      askDelete(
-                        alloc,
-                        'allocation',
-                        equipmentMap[alloc.equipment] ?? `Alocação #${alloc.id}`,
-                      )
-                    "
-                  >
-                    <i class="bi bi-trash"></i>
-                  </button>
-                </div>
-              </td>
-            </tr>
-          </TransitionGroup>
-        </table>
-      </div>
-    </AppCard>
+      <TableSkeleton v-if="pageLoading" :columns="allocationColumns" :rows="2" />
+      <q-table
+        v-else
+        dark
+        flat
+        :rows="allocations"
+        :columns="allocationColumns"
+        :pagination="{ rowsPerPage: 5 }"
+        row-key="id"
+      >
+        <template #body-cell-equipment="props">
+          <q-td :props="props">
+            <span class="text-weight-medium">{{ equipmentMap[props.row.equipment] ?? props.row.equipment }}</span>
+          </q-td>
+        </template>
 
-    <AppCard
-      icon="bi-clipboard2-check-fill"
-      title="Inspeções"
-      :count="inspections.length"
-      class="mt-4"
-    >
-      <template #actions>
-        <RouterLink
+        <template #body-cell-allocation_date="props">
+          <q-td :props="props">
+            <span class="mono">{{ props.row.allocation_date ?? '—' }}</span>
+          </q-td>
+        </template>
+
+        <template #body-cell-return_date="props">
+          <q-td :props="props">
+            <span class="mono">{{ props.row.return_date ?? '—' }}</span>
+          </q-td>
+        </template>
+
+        <template #body-cell-usage_cost="props">
+          <q-td :props="props">
+            <span class="mono">{{ fmtCurrency(props.row.usage_cost) }}</span>
+          </q-td>
+        </template>
+
+        <template #body-cell-actions="props">
+          <q-td :props="props">
+            <div class="row-actions">
+              <q-btn
+                flat round dense icon="edit" color="indigo-3"
+                :to="`/constructions/${constructionId}/equipments/${props.row.id}/edit`"
+              >
+                <q-tooltip>Editar</q-tooltip>
+              </q-btn>
+              <q-btn
+                flat round dense icon="delete" color="negative"
+                @click="askDelete(props.row, 'allocation', equipmentMap[props.row.equipment] ?? `Alocação #${props.row.id}`)"
+              >
+                <q-tooltip>Excluir</q-tooltip>
+              </q-btn>
+            </div>
+          </q-td>
+        </template>
+
+        <template #no-data>
+          <div class="full-width column flex-center empty-state">
+            <div class="empty-tile"><q-icon name="hardware" size="28px" /></div>
+            <p class="q-mt-md q-mb-xs" style="color: var(--text-2)">Nenhum equipamento alocado.</p>
+            <q-btn
+              class="btn-accent q-mt-sm"
+              unelevated no-caps
+              label="Alocar o primeiro"
+              icon="add"
+              size="sm"
+              :to="`/constructions/${constructionId}/equipments/new`"
+            />
+          </div>
+        </template>
+      </q-table>
+    </q-card>
+
+    <q-card flat class="section-card q-mt-lg">
+      <div class="section-header">
+        <div class="row items-center no-wrap" style="gap: 10px">
+          <div class="section-icon">
+            <q-icon name="fact_check" size="18px" />
+          </div>
+          <span class="section-title">Inspeções</span>
+          <q-badge v-if="!pageLoading" rounded :label="inspections.length" color="indigo-7" />
+        </div>
+        <q-btn
+          unelevated
+          no-caps
+          dense
+          icon="add"
+          label="Nova"
+          class="btn-accent"
+          size="sm"
           :to="`/constructions/${constructionId}/inspections/new`"
-          class="btn btn-light btn-sm"
-        >
-          <i class="bi bi-plus-lg me-1"></i>Nova
-        </RouterLink>
-      </template>
-
-      <div v-if="pageLoading" class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
-          <thead>
-            <tr>
-              <th class="ps-4">#</th>
-              <th>Data da Visita</th>
-              <th>Status</th>
-              <th>Pontuação</th>
-              <th>Fiscal</th>
-              <th>Conforme</th>
-              <th>Laudo</th>
-              <th class="text-end pe-4">Ações</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="i in 2" :key="i">
-              <td class="ps-4"><span class="skeleton" style="width: 24px; height: 14px"></span></td>
-              <td><span class="skeleton" style="width: 100px; height: 14px"></span></td>
-              <td>
-                <span
-                  class="skeleton"
-                  style="width: 100px; height: 20px; border-radius: 20px"
-                ></span>
-              </td>
-              <td><span class="skeleton" style="width: 40px; height: 14px"></span></td>
-              <td><span class="skeleton" style="width: 130px; height: 14px"></span></td>
-              <td>
-                <span
-                  class="skeleton"
-                  style="width: 50px; height: 20px; border-radius: 20px"
-                ></span>
-              </td>
-              <td>
-                <span class="skeleton" style="width: 36px; height: 28px; border-radius: 6px"></span>
-              </td>
-              <td class="text-end pe-4">
-                <span class="skeleton" style="width: 64px; height: 28px; border-radius: 6px"></span>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+        />
       </div>
 
-      <div v-else class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
-          <thead>
-            <tr>
-              <th class="ps-4">#</th>
-              <th>Data da Visita</th>
-              <th>Status</th>
-              <th>Pontuação</th>
-              <th>Fiscal</th>
-              <th>Conforme</th>
-              <th>Laudo</th>
-              <th class="text-end pe-4">Ações</th>
-            </tr>
-          </thead>
-          <TransitionGroup tag="tbody" name="list">
-            <tr v-if="inspections.length === 0" key="empty-insp">
-              <td colspan="8" class="text-center py-4 text-muted">
-                <i class="bi bi-inbox fs-2 d-block mb-1"></i>Nenhuma inspeção cadastrada.
-                <div class="mt-2">
-                  <RouterLink
-                    :to="`/constructions/${constructionId}/inspections/new`"
-                    class="btn btn-primary btn-sm"
-                    >Cadastrar a primeira</RouterLink
-                  >
-                </div>
-              </td>
-            </tr>
-            <tr v-for="insp in inspections" :key="insp.id">
-              <td class="ps-4 text-muted">{{ insp.id }}</td>
-              <td>{{ fmtDate(insp.visit_date) }}</td>
-              <td><StatusBadge :value="insp.status_found" :map="statusFoundMap" /></td>
-              <td>{{ insp.score }}</td>
-              <td>{{ employeeMap[insp.employee] ?? '—' }}</td>
-              <td><StatusBadge :value="insp.is_compliant" true-label="Sim" false-label="Não" /></td>
-              <td>
-                <div class="d-flex gap-1">
-                  <RouterLink
-                    :to="`/constructions/${constructionId}/inspections/${insp.id}/audit-report`"
-                    class="btn btn-outline-secondary btn-sm"
-                    :title="reportByInspection[insp.id] ? 'Ver Laudo' : 'Criar Laudo'"
-                  >
-                    <i
-                      :class="
-                        reportByInspection[insp.id]
-                          ? 'bi bi-file-earmark-check'
-                          : 'bi bi-file-earmark-plus'
-                      "
-                    ></i>
-                  </RouterLink>
-                  <a
-                    v-if="reportByInspection[insp.id]"
-                    :href="`/api/audit-reports/${constructionId}/${insp.id}/export-pdf/`"
-                    target="_blank"
-                    class="btn btn-outline-danger btn-sm"
-                    title="Exportar PDF"
-                  >
-                    <i class="bi bi-file-earmark-pdf"></i>
-                  </a>
-                </div>
-              </td>
-              <td class="text-end pe-4">
-                <div class="btn-group btn-group-sm" role="group">
-                  <RouterLink
-                    :to="`/constructions/${constructionId}/inspections/${insp.id}/edit`"
-                    class="btn btn-outline-primary"
-                    title="Editar"
-                  >
-                    <i class="bi bi-pencil"></i>
-                  </RouterLink>
-                  <button
-                    class="btn btn-outline-danger"
-                    title="Excluir"
-                    @click="askDelete(insp, 'inspection', `Inspeção #${insp.id}`)"
-                  >
-                    <i class="bi bi-trash"></i>
-                  </button>
-                </div>
-              </td>
-            </tr>
-          </TransitionGroup>
-        </table>
-      </div>
-    </AppCard>
+      <TableSkeleton v-if="pageLoading" :columns="inspectionColumns" :rows="2" />
+      <q-table
+        v-else
+        dark
+        flat
+        :rows="inspections"
+        :columns="inspectionColumns"
+        :pagination="{ rowsPerPage: 5 }"
+        row-key="id"
+      >
+        <template #body-cell-visit_date="props">
+          <q-td :props="props">
+            <span class="mono">{{ fmtDate(props.row.visit_date) }}</span>
+          </q-td>
+        </template>
 
-    <ConfirmModal
-      :show="!!confirmTarget"
-      :item-name="confirmTarget?.name"
-      @confirm="confirmDelete"
-      @cancel="confirmTarget = null"
-    />
+        <template #body-cell-status_found="props">
+          <q-td :props="props">
+            <SoftChip
+              :color="statusFoundOf(props.row.status_found).color"
+              :icon="statusFoundOf(props.row.status_found).icon"
+              :label="statusFoundOf(props.row.status_found).label"
+            />
+          </q-td>
+        </template>
+
+        <template #body-cell-employee="props">
+          <q-td :props="props">{{ employeeMap[props.row.employee] ?? '—' }}</q-td>
+        </template>
+
+        <template #body-cell-is_compliant="props">
+          <q-td :props="props">
+            <SoftChip
+              :color="props.row.is_compliant ? '#34d399' : '#fb7185'"
+              :icon="props.row.is_compliant ? 'check_circle' : 'cancel'"
+              :label="props.row.is_compliant ? 'Sim' : 'Não'"
+            />
+          </q-td>
+        </template>
+
+        <template #body-cell-audit_report="props">
+          <q-td :props="props">
+            <div class="row items-center no-wrap" style="gap: 4px">
+              <q-btn
+                flat round dense
+                :icon="reportByInspection[props.row.id] ? 'task' : 'note_add'"
+                :color="reportByInspection[props.row.id] ? 'positive' : 'grey-5'"
+                :to="`/constructions/${constructionId}/inspections/${props.row.id}/audit-report`"
+              >
+                <q-tooltip>{{ reportByInspection[props.row.id] ? 'Ver Laudo' : 'Criar Laudo' }}</q-tooltip>
+              </q-btn>
+              <q-btn
+                v-if="reportByInspection[props.row.id]"
+                flat round dense
+                icon="picture_as_pdf"
+                color="negative"
+                tag="a"
+                :href="`/api/audit-reports/${constructionId}/${props.row.id}/export-pdf/`"
+                target="_blank"
+              >
+                <q-tooltip>Exportar PDF</q-tooltip>
+              </q-btn>
+            </div>
+          </q-td>
+        </template>
+
+        <template #body-cell-actions="props">
+          <q-td :props="props">
+            <div class="row-actions">
+              <q-btn
+                flat round dense icon="edit" color="indigo-3"
+                :to="`/constructions/${constructionId}/inspections/${props.row.id}/edit`"
+              >
+                <q-tooltip>Editar</q-tooltip>
+              </q-btn>
+              <q-btn
+                flat round dense icon="delete" color="negative"
+                @click="askDelete(props.row, 'inspection', `Inspeção #${props.row.id}`)"
+              >
+                <q-tooltip>Excluir</q-tooltip>
+              </q-btn>
+            </div>
+          </q-td>
+        </template>
+
+        <template #no-data>
+          <div class="full-width column flex-center empty-state">
+            <div class="empty-tile"><q-icon name="fact_check" size="28px" /></div>
+            <p class="q-mt-md q-mb-xs" style="color: var(--text-2)">Nenhuma inspeção cadastrada.</p>
+            <q-btn
+              class="btn-accent q-mt-sm"
+              unelevated no-caps
+              label="Cadastrar a primeira"
+              icon="add"
+              size="sm"
+              :to="`/constructions/${constructionId}/inspections/new`"
+            />
+          </div>
+        </template>
+      </q-table>
+    </q-card>
   </div>
 </template>
+
+<style scoped>
+.info-card,
+.section-card {
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card);
+  overflow: hidden;
+}
+
+.info-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  margin: 0 0 6px;
+}
+
+.info-value {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-1);
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.section-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: var(--grad-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.section-title {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-1);
+}
+
+.row-actions {
+  display: flex;
+  gap: 2px;
+  justify-content: flex-end;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+:deep(tr:hover) .row-actions {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .row-actions {
+    opacity: 1;
+  }
+}
+
+.empty-state {
+  padding: 36px;
+}
+
+.empty-tile {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  background: var(--grad-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+}
+
+.mono {
+  font-variant-numeric: tabular-nums;
+}
+
+.skeleton-label {
+  height: 10px;
+  width: 60px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.07);
+  margin-bottom: 8px;
+  animation: infra-shimmer 1.5s infinite;
+}
+
+.skeleton-value {
+  height: 20px;
+  width: 100px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.07);
+  animation: infra-shimmer 1.5s infinite;
+}
+</style>
