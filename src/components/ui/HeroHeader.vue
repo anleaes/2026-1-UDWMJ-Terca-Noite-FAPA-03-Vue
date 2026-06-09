@@ -7,6 +7,7 @@ defineProps({
   searchPlaceholder: { type: String, default: 'Buscar...' },
   newLabel: { type: String, default: '' },
   showSearch: { type: Boolean, default: true },
+  backTo: { type: String, default: '' },
 })
 
 defineEmits(['update:search', 'new'])
@@ -18,6 +19,18 @@ defineEmits(['update:search', 'new'])
     <div class="hero-content">
       <div class="hero-top">
         <div class="hero-title-wrap">
+          <q-btn
+            v-if="backTo"
+            flat
+            round
+            dense
+            color="white"
+            icon="arrow_back"
+            :to="backTo"
+            class="hero-back"
+          >
+            <q-tooltip>Voltar</q-tooltip>
+          </q-btn>
           <div class="hero-icon">
             <q-icon :name="icon" size="26px" />
           </div>
@@ -98,6 +111,13 @@ defineEmits(['update:search', 'new'])
   display: flex;
   align-items: center;
   gap: 16px;
+}
+.hero-back {
+  background: rgba(255, 255, 255, 0.06);
+  transition: background 0.2s var(--ease);
+}
+.hero-back:hover {
+  background: rgba(255, 255, 255, 0.12);
 }
 .hero-icon {
   width: 52px;
