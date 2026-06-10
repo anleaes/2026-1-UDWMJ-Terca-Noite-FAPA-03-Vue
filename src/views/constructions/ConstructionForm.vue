@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, watchEffect, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { useCrud } from '../../composables/useCrud'
@@ -22,6 +22,7 @@ const emptyForm = () => ({
   total_value: '',
   location: '',
   company: '',
+  employees: [],
   is_completed: false,
   photo: null,
   report: null,
@@ -33,11 +34,29 @@ const reportFile = ref(null)
 
 const locations = ref([])
 const companies = ref([])
+const allEmployees = ref([])
+
+const employeeOptions = computed(() =>
+  allEmployees.value
+    .filter((e) => e.company === form.value.company)
+    .map((e) => ({ label: `${e.first_name} ${e.last_name}`.trim(), value: e.id })),
+)
 
 onMounted(async () => {
-  const [locRes, compRes] = await Promise.all([fetch('/api/locations/'), fetch('/api/companies/')])
+  const [locRes, compRes, empRes] = await Promise.all([
+    fetch('/api/locations/'),
+    fetch('/api/companies/'),
+    fetch('/api/employees/'),
+  ])
   locations.value = (await locRes.json()).map((l) => ({ label: l.name, value: l.id }))
   companies.value = (await compRes.json()).map((c) => ({ label: c.corporate_name, value: c.id }))
+  allEmployees.value = await empRes.json()
+})
+
+watchEffect(() => {
+  if (!form.value.company || allEmployees.value.length === 0) return
+  const validIds = new Set(employeeOptions.value.map((e) => e.value))
+  form.value.employees = (form.value.employees ?? []).filter((id) => validIds.has(id))
 })
 
 watch(
@@ -60,11 +79,12 @@ const apiErrors = computed(() =>
 
 async function submit() {
   const fd = new FormData()
-  const skip = new Set(['photo', 'report'])
+  const skip = new Set(['photo', 'report', 'employees'])
   Object.entries(form.value).forEach(([k, v]) => {
     if (skip.has(k)) return
     if (v !== null && v !== undefined) fd.append(k, v)
   })
+  ;(form.value.employees ?? []).forEach((id) => fd.append('employees', id))
   if (photoFile.value) fd.append('photo', photoFile.value)
   if (reportFile.value) fd.append('report', reportFile.value)
 
@@ -203,7 +223,7 @@ async function submit() {
               </q-select>
             </div>
 
-            <div class="col-12">
+            <div class="col-12 col-md-6">
               <q-select
                 v-model="form.company"
                 outlined
@@ -218,6 +238,36 @@ async function submit() {
                 hide-bottom-space
               >
                 <template #prepend><q-icon name="business" /></template>
+              </q-select>
+            </div>
+
+            <div class="col-12">
+              <q-select
+                v-model="form.employees"
+                outlined
+                dark
+                color="indigo-3"
+                label="Funcionários"
+                emit-value
+                map-options
+                multiple
+                use-chips
+                :options="employeeOptions"
+              >
+                <template #prepend><q-icon name="groups" /></template>
+                <template #selected-item="scope">
+                  <q-chip
+                    removable
+                    dense
+                    :tabindex="scope.tabindex"
+                    color="indigo-8"
+                    text-color="white"
+                    class="q-ma-xs"
+                    @remove="scope.removeAtIndex(scope.index)"
+                  >
+                    {{ scope.opt.label }}
+                  </q-chip>
+                </template>
               </q-select>
             </div>
 
