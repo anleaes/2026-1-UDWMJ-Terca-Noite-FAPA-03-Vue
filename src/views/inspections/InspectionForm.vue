@@ -1,30 +1,43 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
-import { useRoute, useRouter, RouterLink } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
+import { useQuasar } from 'quasar'
 import { useCrud } from '../../composables/useCrud'
-import { useToast } from '../../composables/useToast'
-import AppCard from '../../components/AppCard.vue'
+import { statusFoundMap } from '../constructions/constructions'
+import FormHeader from '../../components/ui/FormHeader.vue'
 
 const route = useRoute()
 const router = useRouter()
-const toast = useToast()
+const $q = useQuasar()
 
 const constructionId = computed(() => Number(route.params.id))
 const inspectionId = computed(() => (route.params.inspectionId ? Number(route.params.inspectionId) : null))
 const isEdit = computed(() => !!inspectionId.value)
+const backTo = computed(() => `/constructions/${constructionId.value}`)
 
 const { loading, error, fetchOne, save } = useCrud('/api/inspections/')
 
+const statusFoundOptions = Object.entries(statusFoundMap).map(([value, { label }]) => ({ label, value }))
+
 const emptyForm = () => ({
-  visit_date: '', status_found: '', description: '', is_compliant: false, score: '', employee: '',
+  visit_date: '',
+  status_found: '',
+  description: '',
+  is_compliant: false,
+  score: '',
+  employee: '',
 })
 const form = ref(emptyForm())
-const employees = ref([])
+const employeeOptions = ref([])
 
 onMounted(async () => {
-  const constructionData = await fetch(`/api/constructions/${constructionId.value}/`).then((r) => r.json())
-  const all = await fetch('/api/employees/').then((r) => r.json())
-  employees.value = all.filter((e) => e.company === constructionData.company)
+  const [construction, allEmployees] = await Promise.all([
+    fetch(`/api/constructions/${constructionId.value}/`).then((r) => r.json()),
+    fetch('/api/employees/').then((r) => r.json()),
+  ])
+  employeeOptions.value = allEmployees
+    .filter((e) => e.company === construction.company)
+    .map((e) => ({ label: `${e.first_name} ${e.last_name}`.trim(), value: e.id }))
 })
 
 watch(
@@ -32,12 +45,9 @@ watch(
   async (id) => {
     if (id) {
       const data = await fetchOne(id)
-      if (data) {
-        form.value = {
-          ...data,
-          visit_date: data.visit_date ? data.visit_date.slice(0, 16) : '',
-        }
-      }
+      form.value = data
+        ? { ...data, visit_date: data.visit_date ? data.visit_date.slice(0, 16) : '' }
+        : emptyForm()
     } else {
       form.value = emptyForm()
     }
@@ -45,94 +55,176 @@ watch(
   { immediate: true },
 )
 
+const apiErrors = computed(() =>
+  error.value
+    ? Object.entries(error.value).map(([f, m]) => `${f}: ${Array.isArray(m) ? m.join(', ') : m}`)
+    : [],
+)
+
+const required = (v) => (!!v && String(v).trim().length > 0) || 'Campo obrigatório'
+const requiredNum = (v) => (v !== null && v !== undefined && v !== '') || 'Campo obrigatório'
+
 async function submit() {
   const payload = { ...form.value, construction: constructionId.value }
   const data = await save(payload, inspectionId.value)
   if (data) {
-    toast.add(isEdit.value ? 'Inspeção atualizada.' : 'Inspeção cadastrada.')
-    router.push(`/constructions/${constructionId.value}`)
+    $q.notify({
+      type: 'positive',
+      message: isEdit.value ? 'Inspeção atualizada com sucesso.' : 'Inspeção cadastrada com sucesso.',
+      icon: 'check_circle',
+      position: 'bottom-right',
+    })
+    router.push(backTo.value)
   }
 }
 </script>
 
 <template>
-  <div class="row justify-content-center">
-    <div class="col-lg-8">
-      <AppCard
-        :icon="isEdit ? 'bi-clipboard2-check' : 'bi-clipboard2-plus'"
+  <div class="form-page">
+    <q-card flat class="form-card">
+      <FormHeader
+        :icon="isEdit ? 'edit_note' : 'fact_check'"
         :title="isEdit ? 'Editar Inspeção' : 'Nova Inspeção'"
-      >
-        <div class="p-4">
-          <form @submit.prevent="submit" novalidate>
-            <h6 class="text-uppercase text-muted mb-3 small fw-semibold">Dados da Visita</h6>
-            <div class="row g-3">
-              <div class="col-md-6">
-                <label class="form-label">Data da Visita <span class="text-danger">*</span></label>
-                <input v-model="form.visit_date" type="datetime-local" class="form-control" required />
-              </div>
+        subtitle="Preencha os dados da visita de inspeção"
+        :back-to="backTo"
+      />
 
-              <div class="col-md-6">
-                <label class="form-label">Status Encontrado <span class="text-danger">*</span></label>
-                <select v-model="form.status_found" class="form-select" required>
-                  <option value="">Selecione...</option>
-                  <option value="regular">Regular</option>
-                  <option value="irregular">Irregular</option>
-                  <option value="partial">Parcialmente Regular</option>
-                  <option value="critical">Crítico</option>
-                </select>
-              </div>
+      <q-form @submit.prevent="submit" class="form-body">
+        <div class="section-label">Dados da Visita</div>
 
-              <div class="col-md-6">
-                <label class="form-label">Pontuação <span class="text-danger">*</span></label>
-                <input v-model="form.score" type="number" step="0.1" min="0" max="10" class="form-control" required placeholder="0.0 – 10.0" />
-              </div>
+        <div class="row q-col-gutter-md">
+          <div class="col-12 col-md-6">
+            <q-input
+              v-model="form.visit_date"
+              dark
+              outlined
+              color="indigo-3"
+              label="Data da Visita *"
+              type="datetime-local"
+              class="date-input"
+              :rules="[required]"
+              lazy-rules
+            >
+              <template #prepend><q-icon name="event" /></template>
+            </q-input>
+          </div>
 
-              <div class="col-md-6 d-flex align-items-end">
-                <div class="form-check form-switch pb-2">
-                  <input v-model="form.is_compliant" type="checkbox" class="form-check-input" id="isCompliant" role="switch" />
-                  <label class="form-check-label" for="isCompliant">Em conformidade</label>
+          <div class="col-12 col-md-6">
+            <q-select
+              v-model="form.status_found"
+              dark
+              outlined
+              color="indigo-3"
+              label="Status Encontrado *"
+              :options="statusFoundOptions"
+              emit-value
+              map-options
+              popup-content-class="dark-popup"
+              :rules="[required]"
+              lazy-rules
+            >
+              <template #prepend><q-icon name="assessment" /></template>
+            </q-select>
+          </div>
+
+          <div class="col-12 col-md-6">
+            <q-input
+              v-model="form.score"
+              dark
+              outlined
+              color="indigo-3"
+              label="Pontuação *"
+              type="number"
+              step="0.1"
+              min="0"
+              max="10"
+              placeholder="0.0 – 10.0"
+              :rules="[requiredNum]"
+              lazy-rules
+            >
+              <template #prepend><q-icon name="grade" /></template>
+            </q-input>
+          </div>
+
+          <div class="col-12 col-md-6">
+            <q-select
+              v-model="form.employee"
+              dark
+              outlined
+              color="indigo-3"
+              label="Fiscal *"
+              :options="employeeOptions"
+              emit-value
+              map-options
+              popup-content-class="dark-popup"
+              hint="Apenas funcionários da empresa desta obra"
+              :rules="[requiredNum]"
+              lazy-rules
+            >
+              <template #prepend><q-icon name="badge" /></template>
+            </q-select>
+          </div>
+
+          <div class="col-12">
+            <q-input
+              v-model="form.description"
+              dark
+              outlined
+              color="indigo-3"
+              label="Descrição *"
+              type="textarea"
+              autogrow
+              placeholder="Descreva as condições encontradas na visita..."
+              :rules="[required]"
+              lazy-rules
+            >
+              <template #prepend><q-icon name="description" /></template>
+            </q-input>
+          </div>
+
+          <div class="col-12">
+            <div class="toggle-box" :class="{ on: form.is_compliant }">
+              <div class="toggle-info">
+                <q-icon name="verified" size="22px" />
+                <div>
+                  <div class="toggle-title">Em conformidade</div>
+                  <div class="toggle-hint">A obra está dentro das normas?</div>
                 </div>
               </div>
-
-              <div class="col-12">
-                <label class="form-label">Fiscal (Funcionário) <span class="text-danger">*</span></label>
-                <select v-model="form.employee" class="form-select" required>
-                  <option value="">Selecione...</option>
-                  <option v-for="e in employees" :key="e.id" :value="e.id">
-                    {{ e.first_name }} {{ e.last_name }}
-                  </option>
-                </select>
-                <div class="form-text">Exibindo apenas funcionários da empresa desta obra.</div>
-              </div>
-
-              <div class="col-12">
-                <label class="form-label">Descrição <span class="text-danger">*</span></label>
-                <textarea v-model="form.description" class="form-control" rows="4" required placeholder="Descreva as condições encontradas na visita..."></textarea>
-              </div>
+              <q-toggle v-model="form.is_compliant" color="indigo-4" size="lg" />
             </div>
-
-            <Transition name="slide-down">
-              <div v-if="error" class="alert alert-danger mt-4">
-                <strong><i class="bi bi-exclamation-circle me-1"></i>Verifique os campos:</strong>
-                <ul class="mb-0 mt-1">
-                  <li v-for="(msgs, field) in error" :key="field">
-                    {{ field }}: {{ Array.isArray(msgs) ? msgs.join(', ') : msgs }}
-                  </li>
-                </ul>
-              </div>
-            </Transition>
-
-            <div class="d-flex justify-content-end gap-2 mt-4">
-              <RouterLink :to="`/constructions/${constructionId}`" class="btn btn-outline-secondary">Cancelar</RouterLink>
-              <button type="submit" class="btn btn-primary" :disabled="loading">
-                <span v-if="loading" class="spinner-border spinner-border-sm me-1"></span>
-                <i v-else class="bi bi-check2-circle me-1"></i>
-                Salvar
-              </button>
-            </div>
-          </form>
+          </div>
         </div>
-      </AppCard>
-    </div>
+
+        <q-slide-transition>
+          <q-banner v-if="apiErrors.length" class="api-error q-mt-lg" rounded>
+            <template #avatar><q-icon name="error" color="negative" /></template>
+            <div class="text-weight-medium" style="color: #fb7185">Verifique os campos:</div>
+            <ul class="q-my-xs q-pl-md">
+              <li v-for="(msg, i) in apiErrors" :key="i">{{ msg }}</li>
+            </ul>
+          </q-banner>
+        </q-slide-transition>
+
+        <div class="form-actions">
+          <q-btn flat no-caps color="grey-5" label="Cancelar" :to="backTo" />
+          <q-btn
+            type="submit"
+            unelevated
+            no-caps
+            icon="check"
+            label="Salvar"
+            class="btn-accent"
+            :loading="loading"
+          />
+        </div>
+      </q-form>
+    </q-card>
   </div>
 </template>
+
+<style scoped>
+.date-input :deep(input[type='datetime-local']) {
+  color-scheme: dark;
+}
+</style>
