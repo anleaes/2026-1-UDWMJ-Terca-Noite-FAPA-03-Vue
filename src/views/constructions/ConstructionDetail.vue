@@ -223,6 +223,7 @@ async function doDelete(item, type, name) {
         v-else
         dark
         flat
+        class="list-table"
         :rows="contracts"
         :columns="contractColumns"
         :pagination="{ rowsPerPage: 5 }"
@@ -316,6 +317,7 @@ async function doDelete(item, type, name) {
         v-else
         dark
         flat
+        class="list-table"
         :rows="allocations"
         :columns="allocationColumns"
         :pagination="{ rowsPerPage: 5 }"
@@ -407,6 +409,7 @@ async function doDelete(item, type, name) {
         v-else
         dark
         flat
+        class="list-table"
         :rows="inspections"
         :columns="inspectionColumns"
         :pagination="{ rowsPerPage: 5 }"

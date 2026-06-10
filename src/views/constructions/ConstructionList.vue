@@ -126,6 +126,7 @@ onMounted(() => Promise.all([fetchAll(), fetchCompanyMap()]))
         :rows="filtered"
         :columns="columns"
         :pagination="pagination"
+        class="list-table"
         row-key="id"
         @row-click="(_, row) => goDetail(row.id)"
       >
