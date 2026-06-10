@@ -96,7 +96,7 @@ onMounted(fetchAll)
 </script>
 
 <template>
-  <div class="loc-page">
+  <div class="list-page">
     <HeroHeader
       v-model:search="search"
       icon="location_on"
@@ -124,7 +124,7 @@ onMounted(fetchAll)
         dark
         :pagination="pagination"
         :rows-per-page-options="[8, 16, 30, 0]"
-        class="loc-table"
+        class="list-table"
         rows-per-page-label="Por página"
       >
         <template #body-cell-name="props">
@@ -208,57 +208,6 @@ onMounted(fetchAll)
 </template>
 
 <style scoped>
-.loc-page {
-  max-width: 1160px;
-  margin: 0 auto;
-  display: flex;
-  flex-direction: column;
-  gap: 22px;
-}
-
-.table-card {
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-  background: var(--surface);
-  border: 1px solid var(--border-subtle);
-  box-shadow: var(--shadow-card);
-}
-.loc-table {
-  background: transparent;
-}
-.loc-table :deep(thead th) {
-  background: rgba(255, 255, 255, 0.02);
-  color: var(--text-3);
-  font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 0.7px;
-  font-weight: 600;
-  border-bottom: 1px solid var(--border-subtle);
-  padding-top: 16px;
-  padding-bottom: 16px;
-}
-.loc-table :deep(tbody td) {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-  padding-top: 12px;
-  padding-bottom: 12px;
-  font-size: 0.9rem;
-}
-.loc-table :deep(tbody tr) {
-  transition: background 0.15s ease;
-}
-.loc-table :deep(tbody tr:hover) {
-  background: rgba(99, 102, 241, 0.08);
-}
-.loc-table :deep(.q-table__bottom) {
-  border-top: 1px solid var(--border-subtle);
-  color: var(--text-3);
-}
-
-.name-cell {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
 .type-tile {
   width: 38px;
   height: 38px;
@@ -266,47 +215,5 @@ onMounted(fetchAll)
   display: grid;
   place-items: center;
   flex-shrink: 0;
-}
-.name-text {
-  font-weight: 600;
-  color: #e9edf5;
-}
-
-.row-actions {
-  display: inline-flex;
-  gap: 2px;
-  opacity: 0;
-  transition: opacity 0.18s var(--ease);
-}
-.loc-table :deep(tbody tr:hover) .row-actions,
-.row-actions:focus-within {
-  opacity: 1;
-}
-@media (hover: none) {
-  .row-actions {
-    opacity: 1;
-  }
-}
-
-.empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 56px 20px;
-  color: var(--text-3);
-}
-.empty-tile {
-  width: 64px;
-  height: 64px;
-  border-radius: 18px;
-  display: grid;
-  place-items: center;
-  color: #fff;
-  background: var(--grad-accent);
-  box-shadow: var(--shadow-icon);
-  margin-bottom: 16px;
-}
-.empty-text {
-  font-size: 1rem;
 }
 </style>

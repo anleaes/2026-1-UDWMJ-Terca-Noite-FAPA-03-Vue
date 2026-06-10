@@ -183,7 +183,7 @@ async function doDelete(employee) {
         </template>
 
         <template #no-data>
-          <div class="empty">
+          <div class="full-width column flex-center empty">
             <div class="empty-tile">
               <q-icon name="person_off" size="30px" />
             </div>

@@ -177,7 +177,7 @@ async function doDelete(equipment) {
         </template>
 
         <template #no-data>
-          <div class="empty">
+          <div class="full-width column flex-center empty">
             <div class="empty-tile">
               <q-icon name="precision_manufacturing" size="30px" />
             </div>
