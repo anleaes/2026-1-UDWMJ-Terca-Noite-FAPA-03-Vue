@@ -171,7 +171,7 @@ onMounted(fetchAll)
         </template>
 
         <template #no-data>
-          <div class="empty">
+          <div class="full-width column flex-center empty">
             <div class="empty-tile">
               <q-icon name="precision_manufacturing" size="30px" />
             </div>
@@ -284,6 +284,7 @@ onMounted(fetchAll)
   display: flex;
   flex-direction: column;
   align-items: center;
+  width: 100%;
   padding: 56px 20px;
   color: var(--text-3);
 }

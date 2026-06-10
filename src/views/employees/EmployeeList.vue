@@ -182,7 +182,7 @@ onMounted(() => Promise.all([fetchAll(), fetchCompanyMap()]))
         </template>
 
         <template #no-data>
-          <div class="empty">
+          <div class="full-width column flex-center empty">
             <div class="empty-tile">
               <q-icon name="person_off" size="30px" />
             </div>
@@ -300,6 +300,7 @@ onMounted(() => Promise.all([fetchAll(), fetchCompanyMap()]))
   display: flex;
   flex-direction: column;
   align-items: center;
+  width: 100%;
   padding: 56px 20px;
   color: var(--text-3);
 }

@@ -193,7 +193,7 @@ onMounted(fetchAll)
         </template>
 
         <template #no-data>
-          <div class="empty">
+          <div class="full-width column flex-center empty">
             <div class="empty-tile">
               <q-icon name="domain_disabled" size="30px" />
             </div>
