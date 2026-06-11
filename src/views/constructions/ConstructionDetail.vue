@@ -24,6 +24,11 @@ const reportByInspection = ref({})
 
 const pageLoading = ref(true)
 
+const returnDialog = ref(false)
+const returningAllocation = ref(null)
+const returnDate = ref('')
+const returnLoading = ref(false)
+
 const contractColumns = [
   { name: 'number', label: 'Número', field: 'number', align: 'left', sortable: true },
   { name: 'signing_date', label: 'Data Assinatura', field: 'signing_date', align: 'left', sortable: true },
@@ -108,6 +113,36 @@ function askDelete(item, type, name) {
     cancel: { label: 'Cancelar', flat: true, color: 'grey-5' },
     ok: { label: 'Excluir', unelevated: true, color: 'negative', icon: 'delete' },
   }).onOk(() => doDelete(item, type, name))
+}
+
+function askReturn(allocation) {
+  returningAllocation.value = allocation
+  returnDate.value = ''
+  returnDialog.value = true
+}
+
+async function confirmReturn() {
+  if (!returnDate.value) return
+  returnLoading.value = true
+  try {
+    const alloc = returningAllocation.value
+    const res = await fetch(`/api/constructionequipments/${alloc.id}/`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ return_date: returnDate.value }),
+    })
+    if (res.ok) {
+      const updated = await res.json()
+      const idx = allocations.value.findIndex((a) => a.id === alloc.id)
+      if (idx !== -1) allocations.value[idx] = updated
+      $q.notify({ type: 'positive', message: 'Equipamento devolvido com sucesso.', icon: 'check_circle', position: 'bottom-right' })
+      returnDialog.value = false
+    } else {
+      $q.notify({ type: 'negative', message: 'Erro ao registrar devolução.', icon: 'error', position: 'bottom-right' })
+    }
+  } finally {
+    returnLoading.value = false
+  }
 }
 
 async function doDelete(item, type, name) {
@@ -351,6 +386,13 @@ async function doDelete(item, type, name) {
           <q-td :props="props">
             <div class="row-actions">
               <q-btn
+                v-if="!props.row.return_date"
+                flat round dense icon="assignment_return" color="amber-4"
+                @click="askReturn(props.row)"
+              >
+                <q-tooltip>Devolver</q-tooltip>
+              </q-btn>
+              <q-btn
                 flat round dense icon="edit" color="indigo-3"
                 :to="`/constructions/${constructionId}/equipments/${props.row.id}/edit`"
               >
@@ -506,6 +548,47 @@ async function doDelete(item, type, name) {
         </template>
       </q-table>
     </q-card>
+
+    <q-dialog v-model="returnDialog" persistent>
+      <q-card flat style="min-width: 340px; background: var(--surface); border: 1px solid var(--border-subtle); border-radius: var(--radius-card);">
+        <q-card-section class="row items-center no-wrap" style="gap: 12px; padding-bottom: 0">
+          <div class="section-icon">
+            <q-icon name="assignment_return" size="18px" />
+          </div>
+          <div>
+            <div style="font-weight: 600; color: var(--text-1); font-size: 15px">Registrar Devolução</div>
+            <div style="font-size: 12px; color: var(--text-3); margin-top: 2px">
+              {{ returningAllocation ? equipmentMap[returningAllocation.equipment] : '' }}
+            </div>
+          </div>
+        </q-card-section>
+
+        <q-card-section>
+          <q-input
+            v-model="returnDate"
+            type="date"
+            dark
+            outlined
+            color="indigo-3"
+            label="Data de Devolução *"
+            :min="returningAllocation?.allocation_date"
+          >
+            <template #prepend><q-icon name="event_available" /></template>
+          </q-input>
+        </q-card-section>
+
+        <q-card-section class="row justify-end q-gutter-sm" style="padding-top: 0">
+          <q-btn flat no-caps color="grey-5" label="Cancelar" v-close-popup />
+          <q-btn
+            unelevated no-caps icon="check" label="Confirmar"
+            class="btn-accent"
+            :loading="returnLoading"
+            :disable="!returnDate"
+            @click="confirmReturn"
+          />
+        </q-card-section>
+      </q-card>
+    </q-dialog>
   </div>
 </template>
 
