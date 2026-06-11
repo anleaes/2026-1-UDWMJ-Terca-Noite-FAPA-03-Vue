@@ -23,13 +23,13 @@ const { username, logout } = useAuth()
 const isLoginPage = computed(() => route.path === '/login')
 
 const navItems = [
-  { to: '/', icon: 'bi-speedometer2', label: 'Dashboard', exact: true },
-  { to: '/companies', icon: 'bi-buildings', label: 'Empresas' },
-  { to: '/locations', icon: 'bi-geo-alt', label: 'Locais' },
-  { to: '/employees', icon: 'bi-people', label: 'Funcionários' },
-  { to: '/equipments', icon: 'bi-tools', label: 'Equipamentos' },
-  { to: '/citizens', icon: 'bi-person-vcard', label: 'Cidadãos' },
-  { to: '/constructions', icon: 'bi-cone-striped', label: 'Obras' },
+  { to: '/', icon: 'dashboard', label: 'Dashboard', exact: true },
+  { to: '/companies', icon: 'domain', label: 'Empresas' },
+  { to: '/locations', icon: 'location_on', label: 'Locais' },
+  { to: '/employees', icon: 'badge', label: 'Funcionários' },
+  { to: '/equipments', icon: 'precision_manufacturing', label: 'Equipamentos' },
+  { to: '/citizens', icon: 'groups', label: 'Cidadãos' },
+  { to: '/constructions', icon: 'construction', label: 'Obras' },
 ]
 
 function isActive(item) {
@@ -55,7 +55,7 @@ async function handleLogout() {
       <aside class="sidebar" :class="{ 'sidebar-open': sidebarOpen }">
         <div class="sidebar-brand">
           <span class="brand-id">
-            <i class="bi bi-building-fill brand-logo"></i>
+            <q-icon name="apartment" size="22px" class="brand-logo" />
             <span class="brand-name">InfraApp</span>
           </span>
           <button
@@ -63,7 +63,7 @@ async function handleLogout() {
             :title="collapsed ? 'Expandir menu' : 'Recolher menu'"
             @click="toggleCollapse"
           >
-            <i class="bi" :class="collapsed ? 'bi-chevron-right' : 'bi-chevron-left'"></i>
+            <q-icon :name="collapsed ? 'chevron_right' : 'chevron_left'" size="18px" />
           </button>
         </div>
 
@@ -80,18 +80,18 @@ async function handleLogout() {
             :title="item.label"
             @click="sidebarOpen = false"
           >
-            <i :class="`bi ${item.icon}`"></i>
+            <q-icon :name="item.icon" size="20px" />
             <span>{{ item.label }}</span>
           </RouterLink>
         </nav>
 
         <div class="sidebar-footer">
           <div class="sidebar-user">
-            <i class="bi bi-person-circle me-2"></i>
+            <q-icon name="account_circle" size="18px" />
             <span class="sidebar-username">{{ username }}</span>
           </div>
           <button class="sidebar-logout" :title="collapsed ? 'Sair' : ''" @click="handleLogout">
-            <i class="bi bi-box-arrow-right"></i><span class="logout-label">Sair</span>
+            <q-icon name="logout" size="18px" /><span class="logout-label">Sair</span>
           </button>
         </div>
       </aside>
@@ -99,18 +99,16 @@ async function handleLogout() {
 
       <div class="main-wrapper">
         <header class="topbar">
-          <button class="btn btn-link text-dark p-0" @click="sidebarOpen = !sidebarOpen">
-            <i class="bi bi-list fs-4"></i>
-          </button>
-          <span class="fw-semibold ms-2">InfraApp</span>
+          <q-btn flat round dense color="grey-4" icon="menu" @click="sidebarOpen = !sidebarOpen" />
+          <span class="topbar-title">InfraApp</span>
 
-          <div class="ms-auto d-flex align-items-center gap-3">
-            <span class="text-muted small d-none d-md-inline">
-              <i class="bi bi-person-circle me-1"></i>{{ username }}
+          <div class="topbar-right">
+            <span class="topbar-user">
+              <q-icon name="account_circle" size="16px" />{{ username }}
             </span>
-            <button class="btn btn-outline-danger btn-sm" @click="handleLogout">
-              <i class="bi bi-box-arrow-right me-1"></i>Sair
-            </button>
+            <q-btn flat round dense color="red-4" icon="logout" @click="handleLogout">
+              <q-tooltip>Sair</q-tooltip>
+            </q-btn>
           </div>
         </header>
 
