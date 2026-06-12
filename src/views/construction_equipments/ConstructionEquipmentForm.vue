@@ -1,13 +1,13 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
-import { useRoute, useRouter, RouterLink } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
+import { useQuasar } from 'quasar'
 import { useCrud } from '../../composables/useCrud'
-import { useToast } from '../../composables/useToast'
-import AppCard from '../../components/AppCard.vue'
+import FormHeader from '../../components/ui/FormHeader.vue'
 
 const route = useRoute()
 const router = useRouter()
-const toast = useToast()
+const $q = useQuasar()
 
 const constructionId = computed(() => Number(route.params.id))
 const allocationId = computed(() => (route.params.allocationId ? Number(route.params.allocationId) : null))
@@ -17,13 +17,14 @@ const { loading, error, fetchOne, save } = useCrud('/api/constructionequipments/
 
 const emptyForm = () => ({ equipment: '', allocation_date: '', return_date: '' })
 const form = ref(emptyForm())
-const equipments = ref([])
+const equipmentOptions = ref([])
 
 onMounted(async () => {
   const constructionData = await fetch(`/api/constructions/${constructionId.value}/`).then((r) => r.json())
   const all = await fetch('/api/equipments/').then((r) => r.json())
   const fromSameCompany = all.filter((e) => e.company === constructionData.company)
-  equipments.value = isEdit.value ? fromSameCompany : fromSameCompany.filter((e) => e.is_available)
+  const filtered = isEdit.value ? fromSameCompany : fromSameCompany.filter((e) => e.is_available)
+  equipmentOptions.value = filtered.map((e) => ({ label: e.name, value: e.id }))
 })
 
 watch(
@@ -31,7 +32,12 @@ watch(
   async (id) => {
     if (id) {
       const data = await fetchOne(id)
-      if (data) form.value = { equipment: data.equipment, allocation_date: data.allocation_date, return_date: data.return_date ?? '' }
+      if (data)
+        form.value = {
+          equipment: data.equipment,
+          allocation_date: data.allocation_date,
+          return_date: data.return_date ?? '',
+        }
     } else {
       form.value = emptyForm()
     }
@@ -39,73 +45,119 @@ watch(
   { immediate: true },
 )
 
+const apiErrors = computed(() => {
+  if (!error.value) return []
+  return Object.entries(error.value).map(
+    ([field, msgs]) => `${field}: ${Array.isArray(msgs) ? msgs.join(', ') : msgs}`,
+  )
+})
+
+const required = (v) => (!!v && String(v).trim().length > 0) || 'Campo obrigatório'
+
 async function submit() {
   const payload = { ...form.value, construction: constructionId.value }
   if (!payload.return_date) delete payload.return_date
   const data = await save(payload, allocationId.value)
   if (data) {
-    toast.add(isEdit.value ? 'Alocação atualizada.' : 'Equipamento alocado.')
+    $q.notify({
+      type: 'positive',
+      message: isEdit.value ? 'Alocação atualizada.' : 'Equipamento alocado.',
+      icon: 'check_circle',
+      position: 'bottom-right',
+    })
     router.push(`/constructions/${constructionId.value}`)
   }
 }
 </script>
 
 <template>
-  <div class="row justify-content-center">
-    <div class="col-lg-8">
-      <AppCard
-        :icon="isEdit ? 'bi-pencil-square' : 'bi-plus-square'"
+  <div class="form-page">
+    <q-card flat class="form-card">
+      <FormHeader
+        :icon="isEdit ? 'edit' : 'handyman'"
         :title="isEdit ? 'Editar Alocação' : 'Alocar Equipamento'"
-      >
-        <div class="p-4">
-          <form @submit.prevent="submit" novalidate>
-            <h6 class="text-uppercase text-muted mb-3 small fw-semibold">Dados da Alocação</h6>
-            <div class="row g-3">
-              <div class="col-12">
-                <label class="form-label">Equipamento <span class="text-danger">*</span></label>
-                <select v-model="form.equipment" class="form-select" required>
-                  <option value="">Selecione...</option>
-                  <option v-for="e in equipments" :key="e.id" :value="e.id">
-                    {{ e.name }}
-                  </option>
-                </select>
-                <div v-if="!isEdit" class="form-text">Exibindo apenas equipamentos disponíveis da empresa desta obra.</div>
-              </div>
+        subtitle="Dados da alocação de equipamento na obra"
+        :back-to="`/constructions/${constructionId}`"
+      />
 
-              <div class="col-md-6">
-                <label class="form-label">Data de Alocação <span class="text-danger">*</span></label>
-                <input v-model="form.allocation_date" type="date" class="form-control" required />
-              </div>
+      <q-form @submit.prevent="submit" class="form-body">
+        <div class="section-label">Dados da Alocação</div>
 
-              <div class="col-md-6">
-                <label class="form-label">Data de Devolução</label>
-                <input v-model="form.return_date" type="date" class="form-control" />
-                <div class="form-text">Preencher ao devolver o equipamento. O custo será calculado automaticamente.</div>
-              </div>
-            </div>
+        <div class="row q-col-gutter-md">
+          <div class="col-12">
+            <q-select
+              v-model="form.equipment"
+              dark
+              :options="equipmentOptions"
+              label="Equipamento *"
+              outlined
+              color="indigo-3"
+              popup-content-class="dark-popup"
+              emit-value
+              map-options
+              :rules="[required]"
+              lazy-rules
+            >
+              <template #prepend><q-icon name="construction" /></template>
+              <template #hint>
+                <span v-if="!isEdit">Exibindo apenas equipamentos disponíveis da empresa desta obra.</span>
+              </template>
+            </q-select>
+          </div>
 
-            <Transition name="slide-down">
-              <div v-if="error" class="alert alert-danger mt-4">
-                <strong><i class="bi bi-exclamation-circle me-1"></i>Verifique os campos:</strong>
-                <ul class="mb-0 mt-1">
-                  <li v-for="(msgs, field) in error" :key="field">
-                    {{ field }}: {{ Array.isArray(msgs) ? msgs.join(', ') : msgs }}
-                  </li>
-                </ul>
-              </div>
-            </Transition>
+          <div class="col-12 col-md-6">
+            <q-input
+              v-model="form.allocation_date"
+              type="date"
+              dark
+              label="Data de Alocação *"
+              outlined
+              color="indigo-3"
+              :rules="[required]"
+              lazy-rules
+            >
+              <template #prepend><q-icon name="event" /></template>
+            </q-input>
+          </div>
 
-            <div class="d-flex justify-content-end gap-2 mt-4">
-              <RouterLink :to="`/constructions/${constructionId}`" class="btn btn-outline-secondary">Cancelar</RouterLink>
-              <button type="submit" class="btn btn-primary" :disabled="loading">
-                <span v-if="loading" class="spinner-border spinner-border-sm me-1"></span>
-                <i v-else class="bi bi-check2-circle me-1"></i>
-                Salvar
-              </button>
-            </div>
-          </form>
+          <div class="col-12 col-md-6">
+            <q-input
+              v-model="form.return_date"
+              type="date"
+              dark
+              label="Data de Devolução"
+              outlined
+              color="indigo-3"
+              hint="Preencher ao devolver. O custo será calculado automaticamente."
+            >
+              <template #prepend><q-icon name="event_available" /></template>
+            </q-input>
+          </div>
         </div>
-      </AppCard>
-    </div>
+
+        <q-slide-transition>
+          <q-banner v-if="apiErrors.length" class="api-error q-mt-lg" rounded>
+            <template #avatar><q-icon name="error" color="negative" /></template>
+            <div class="text-weight-medium" style="color: #fb7185">Verifique os campos:</div>
+            <ul class="q-my-xs q-pl-md">
+              <li v-for="(msg, i) in apiErrors" :key="i">{{ msg }}</li>
+            </ul>
+          </q-banner>
+        </q-slide-transition>
+
+        <div class="form-actions">
+          <q-btn flat no-caps color="grey-5" label="Cancelar" :to="`/constructions/${constructionId}`" />
+          <q-btn
+            type="submit"
+            unelevated
+            no-caps
+            icon="check"
+            label="Salvar"
+            class="btn-accent"
+            :loading="loading"
+          />
+        </div>
+      </q-form>
+    </q-card>
   </div>
 </template>

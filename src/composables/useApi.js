@@ -9,13 +9,14 @@ export function useApi() {
     error.value = null
     try {
       const hasBody = options.body !== undefined
+      const isFormData = options.body instanceof FormData
       const res = await fetch(url, {
         ...options,
         headers: {
-          ...(hasBody ? { 'Content-Type': 'application/json' } : {}),
+          ...(hasBody && !isFormData ? { 'Content-Type': 'application/json' } : {}),
           ...options.headers,
         },
-        body: hasBody ? JSON.stringify(options.body) : undefined,
+        body: hasBody ? (isFormData ? options.body : JSON.stringify(options.body)) : undefined,
       })
 
       if (!res.ok) {

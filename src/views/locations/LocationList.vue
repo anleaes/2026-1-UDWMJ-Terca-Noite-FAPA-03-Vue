@@ -1,27 +1,38 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { RouterLink } from 'vue-router'
+import { useRouter } from 'vue-router'
+import { useQuasar } from 'quasar'
 import { useCrud } from '../../composables/useCrud'
-import { useToast } from '../../composables/useToast'
-import AppCard from '../../components/AppCard.vue'
-import StatusBadge from '../../components/StatusBadge.vue'
-import ConfirmModal from '../../components/ConfirmModal.vue'
-import SearchInput from '../../components/SearchInput.vue'
+import HeroHeader from '../../components/ui/HeroHeader.vue'
+import StatCard from '../../components/ui/StatCard.vue'
+import SoftChip from '../../components/ui/SoftChip.vue'
+import TableSkeleton from '../../components/ui/TableSkeleton.vue'
 
 const { items: locations, loading, fetchAll, remove } = useCrud('/api/locations/')
-const toast = useToast()
+const router = useRouter()
+const $q = useQuasar()
 
 const search = ref('')
-const confirmTarget = ref(null)
 
 const typeMap = {
-  STREET: { label: 'Rua', cls: 'badge-soft-secondary' },
-  AVENUE: { label: 'Avenida', cls: 'badge-soft-info' },
-  SQUARE: { label: 'Praça', cls: 'badge-soft-success' },
-  PARK: { label: 'Parque', cls: 'badge-soft-success' },
-  ALLEY: { label: 'Viela', cls: 'badge-soft-warning' },
-  OTHER: { label: 'Outro', cls: 'badge-soft-secondary' },
+  STREET: { label: 'Rua', color: '#60a5fa', icon: 'add_road' },
+  AVENUE: { label: 'Avenida', color: '#818cf8', icon: 'signpost' },
+  SQUARE: { label: 'Praça', color: '#2dd4bf', icon: 'forest' },
+  PARK: { label: 'Parque', color: '#34d399', icon: 'park' },
+  ALLEY: { label: 'Viela', color: '#fbbf24', icon: 'alt_route' },
+  OTHER: { label: 'Outro', color: '#94a3b8', icon: 'place' },
 }
+
+const columns = [
+  { name: 'name', label: 'Local', field: 'name', align: 'left', sortable: true },
+  { name: 'neighborhood', label: 'Bairro', field: 'neighborhood', align: 'left', sortable: true },
+  { name: 'city', label: 'Cidade', field: 'city', align: 'left', sortable: true },
+  { name: 'type', label: 'Tipo', field: 'type', align: 'center', sortable: true },
+  { name: 'is_paved', label: 'Pavimentado', field: 'is_paved', align: 'center', sortable: true },
+  { name: 'actions', label: '', field: 'actions', align: 'right' },
+]
+
+const pagination = ref({ rowsPerPage: 8, sortBy: 'name' })
 
 const filtered = computed(() => {
   const q = search.value.toLowerCase().trim()
@@ -34,19 +45,50 @@ const filtered = computed(() => {
   )
 })
 
-function askDelete(location) {
-  confirmTarget.value = { id: location.id, name: location.name }
+const pavedCount = computed(() => locations.value.filter((l) => l.is_paved).length)
+const typesCount = computed(() => new Set(locations.value.map((l) => l.type)).size)
+
+function typeOf(value) {
+  return typeMap[value] ?? { label: value, color: '#94a3b8', icon: 'place' }
 }
 
-async function confirmDelete() {
-  const { id, name } = confirmTarget.value
-  confirmTarget.value = null
+function goNew() {
+  router.push('/locations/new')
+}
+
+function goEdit(id) {
+  router.push(`/locations/${id}/edit`)
+}
+
+function askDelete(location) {
+  $q.dialog({
+    title: 'Confirmar exclusão',
+    message: `Tem certeza que deseja excluir o local <strong>${location.name}</strong>?<br><span class="text-grey-5">Esta ação não pode ser desfeita.</span>`,
+    html: true,
+    dark: true,
+    cancel: { label: 'Cancelar', flat: true, color: 'grey-5' },
+    ok: { label: 'Excluir', unelevated: true, color: 'negative', icon: 'delete' },
+    persistent: true,
+  }).onOk(() => doDelete(location))
+}
+
+async function doDelete({ id, name }) {
   const ok = await remove(id)
   if (ok !== null) {
     locations.value = locations.value.filter((l) => l.id !== id)
-    toast.add(`Local "${name}" excluído com sucesso.`)
+    $q.notify({
+      type: 'positive',
+      message: `Local "${name}" excluído.`,
+      icon: 'check_circle',
+      position: 'bottom-right',
+    })
   } else {
-    toast.add('Erro ao excluir local.', 'error')
+    $q.notify({
+      type: 'negative',
+      message: 'Erro ao excluir local.',
+      icon: 'error',
+      position: 'bottom-right',
+    })
   }
 }
 
@@ -54,109 +96,124 @@ onMounted(fetchAll)
 </script>
 
 <template>
-  <AppCard icon="bi-geo-alt-fill" title="Locais" :count="locations.length">
-    <template #actions>
-      <div class="d-flex gap-2 align-items-center">
-        <SearchInput v-model="search" placeholder="Buscar local..." />
-        <RouterLink to="/locations/new" class="btn btn-light btn-sm text-nowrap">
-          <i class="bi bi-plus-lg me-1"></i>Novo
-        </RouterLink>
-      </div>
-    </template>
+  <div class="list-page">
+    <HeroHeader
+      v-model:search="search"
+      icon="location_on"
+      title="Locais"
+      subtitle="Gestão dos locais de obra de infraestrutura"
+      search-placeholder="Buscar local..."
+      new-label="Novo local"
+      @new="goNew"
+    >
+      <template #stats>
+        <StatCard :value="locations.length" label="Total" icon="location_on" color="#818cf8" />
+        <StatCard :value="pavedCount" label="Pavimentados" icon="add_road" color="#34d399" />
+        <StatCard :value="typesCount" label="Tipos diferentes" icon="category" color="#22d3ee" />
+      </template>
+    </HeroHeader>
 
-    <div v-if="loading" class="table-responsive">
-      <table class="table table-hover align-middle mb-0">
-        <thead>
-          <tr>
-            <th class="ps-4">#</th>
-            <th>Nome</th>
-            <th>Bairro</th>
-            <th>Cidade</th>
-            <th class="text-center">Tipo</th>
-            <th class="text-center">Pavimentado</th>
-            <th class="text-end pe-4">Ações</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="i in 5" :key="i">
-            <td class="ps-4"><span class="skeleton" style="width: 24px; height: 14px"></span></td>
-            <td><span class="skeleton" style="width: 140px; height: 14px"></span></td>
-            <td><span class="skeleton" style="width: 110px; height: 14px"></span></td>
-            <td><span class="skeleton" style="width: 100px; height: 14px"></span></td>
-            <td class="text-center">
-              <span class="skeleton" style="width: 64px; height: 20px; border-radius: 8px"></span>
-            </td>
-            <td class="text-center">
-              <span class="skeleton" style="width: 48px; height: 20px; border-radius: 8px"></span>
-            </td>
-            <td class="text-end pe-4">
-              <span class="skeleton" style="width: 64px; height: 28px; border-radius: 6px"></span>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+    <TableSkeleton v-if="loading" :columns="columns" :rows="6" />
 
-    <div v-else class="table-responsive">
-      <table class="table table-hover align-middle mb-0">
-        <thead>
-          <tr>
-            <th class="ps-4">#</th>
-            <th>Nome</th>
-            <th>Bairro</th>
-            <th>Cidade</th>
-            <th class="text-center">Tipo</th>
-            <th class="text-center">Pavimentado</th>
-            <th class="text-end pe-4">Ações</th>
-          </tr>
-        </thead>
-        <TransitionGroup tag="tbody" name="list">
-          <tr v-if="filtered.length === 0" key="empty">
-            <td colspan="7" class="text-center py-5 text-muted">
-              <i class="bi bi-inbox fs-1 d-block mb-2"></i>
-              {{ search ? 'Nenhum local encontrado.' : 'Nenhum local cadastrado.' }}
-              <div v-if="!search" class="mt-2">
-                <RouterLink to="/locations/new" class="btn btn-primary btn-sm">
-                  Cadastrar o primeiro
-                </RouterLink>
+    <q-card v-else flat class="table-card">
+      <q-table
+        :rows="filtered"
+        :columns="columns"
+        row-key="id"
+        flat
+        dark
+        :pagination="pagination"
+        :rows-per-page-options="[8, 16, 30, 0]"
+        class="list-table"
+        rows-per-page-label="Por página"
+      >
+        <template #body-cell-name="props">
+          <q-td :props="props">
+            <div class="name-cell">
+              <div class="type-tile" :style="{ background: `${typeOf(props.row.type).color}22` }">
+                <q-icon
+                  :name="typeOf(props.row.type).icon"
+                  size="18px"
+                  :style="{ color: typeOf(props.row.type).color }"
+                />
               </div>
-            </td>
-          </tr>
-          <tr v-for="location in filtered" :key="location.id">
-            <td class="ps-4 text-muted">{{ location.id }}</td>
-            <td class="fw-semibold">{{ location.name }}</td>
-            <td>{{ location.neighborhood }}</td>
-            <td>{{ location.city }}</td>
-            <td class="text-center">
-              <StatusBadge :value="location.type" :map="typeMap" />
-            </td>
-            <td class="text-center">
-              <StatusBadge :value="location.is_paved" true-label="Sim" false-label="Não" />
-            </td>
-            <td class="text-end pe-4">
-              <div class="btn-group btn-group-sm" role="group">
-                <RouterLink
-                  :to="`/locations/${location.id}/edit`"
-                  class="btn btn-outline-primary"
-                  title="Editar"
-                >
-                  <i class="bi bi-pencil"></i>
-                </RouterLink>
-                <button class="btn btn-outline-danger" title="Excluir" @click="askDelete(location)">
-                  <i class="bi bi-trash"></i>
-                </button>
-              </div>
-            </td>
-          </tr>
-        </TransitionGroup>
-      </table>
-    </div>
+              <span class="name-text">{{ props.row.name }}</span>
+            </div>
+          </q-td>
+        </template>
 
-    <ConfirmModal
-      :show="!!confirmTarget"
-      :item-name="confirmTarget?.name"
-      @confirm="confirmDelete"
-      @cancel="confirmTarget = null"
-    />
-  </AppCard>
+        <template #body-cell-neighborhood="props">
+          <q-td :props="props" class="text-grey-5">{{ props.row.neighborhood || '—' }}</q-td>
+        </template>
+
+        <template #body-cell-city="props">
+          <q-td :props="props" class="text-grey-5">{{ props.row.city || '—' }}</q-td>
+        </template>
+
+        <template #body-cell-type="props">
+          <q-td :props="props">
+            <SoftChip
+              :color="typeOf(props.row.type).color"
+              :icon="typeOf(props.row.type).icon"
+              :label="typeOf(props.row.type).label"
+            />
+          </q-td>
+        </template>
+
+        <template #body-cell-is_paved="props">
+          <q-td :props="props">
+            <SoftChip
+              :color="props.row.is_paved ? '#34d399' : '#94a3b8'"
+              :icon="props.row.is_paved ? 'check_circle' : 'remove_circle'"
+              :label="props.row.is_paved ? 'Sim' : 'Não'"
+            />
+          </q-td>
+        </template>
+
+        <template #body-cell-actions="props">
+          <q-td :props="props">
+            <div class="row-actions">
+              <q-btn flat round dense color="indigo-3" icon="edit" @click="goEdit(props.row.id)">
+                <q-tooltip>Editar</q-tooltip>
+              </q-btn>
+              <q-btn flat round dense color="red-4" icon="delete" @click="askDelete(props.row)">
+                <q-tooltip>Excluir</q-tooltip>
+              </q-btn>
+            </div>
+          </q-td>
+        </template>
+
+        <template #no-data>
+          <div class="full-width column flex-center empty">
+            <div class="empty-tile">
+              <q-icon name="location_off" size="30px" />
+            </div>
+            <div class="empty-text">
+              {{ search ? 'Nenhum local encontrado.' : 'Nenhum local cadastrado ainda.' }}
+            </div>
+            <q-btn
+              v-if="!search"
+              unelevated
+              no-caps
+              icon="add"
+              label="Cadastrar o primeiro"
+              class="btn-accent q-mt-md"
+              @click="goNew"
+            />
+          </div>
+        </template>
+      </q-table>
+    </q-card>
+  </div>
 </template>
+
+<style scoped>
+.type-tile {
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+</style>

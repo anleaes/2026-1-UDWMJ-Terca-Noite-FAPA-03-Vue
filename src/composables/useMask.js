@@ -1,5 +1,3 @@
-import { nextTick } from 'vue'
-
 function maskCPF(value) {
   return value
     .replace(/\D/g, '')

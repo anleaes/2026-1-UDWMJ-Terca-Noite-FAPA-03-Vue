@@ -1,168 +1,308 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { RouterLink } from 'vue-router'
+import { useRouter } from 'vue-router'
+import { useQuasar } from 'quasar'
 import { useCrud } from '../../composables/useCrud'
-import { useToast } from '../../composables/useToast'
-import AppCard from '../../components/AppCard.vue'
-import StatusBadge from '../../components/StatusBadge.vue'
-import ConfirmModal from '../../components/ConfirmModal.vue'
-import SearchInput from '../../components/SearchInput.vue'
+import { useCompanyMap } from '../../composables/useCompanyMap'
+import { statusOf, typeOf } from './constructions'
+import HeroHeader from '../../components/ui/HeroHeader.vue'
+import StatCard from '../../components/ui/StatCard.vue'
+import SoftChip from '../../components/ui/SoftChip.vue'
+import TableSkeleton from '../../components/ui/TableSkeleton.vue'
 
 const { items: constructions, loading, fetchAll, remove } = useCrud('/api/constructions/')
-const toast = useToast()
+const router = useRouter()
+const $q = useQuasar()
 
 const search = ref('')
-const confirmTarget = ref(null)
+const { companyMap, fetchCompanyMap } = useCompanyMap()
 
-const statusMap = {
-  planned:     { label: 'Planejada',    cls: 'badge-soft-secondary' },
-  in_progress: { label: 'Em Andamento', cls: 'badge-soft-info'      },
-  paused:      { label: 'Pausada',      cls: 'badge-soft-warning'   },
-  completed:   { label: 'Concluída',    cls: 'badge-soft-success'   },
-  cancelled:   { label: 'Cancelada',    cls: 'badge-soft-danger'    },
-}
+const columns = [
+  { name: 'title', label: 'Título', field: 'title', align: 'left', sortable: true },
+  { name: 'type', label: 'Tipo', field: 'type', align: 'left', sortable: true },
+  { name: 'status', label: 'Status', field: 'status', align: 'left', sortable: true },
+  { name: 'start_date', label: 'Início', field: 'start_date', align: 'left', sortable: true },
+  {
+    name: 'expected_end_date',
+    label: 'Término Previsto',
+    field: 'expected_end_date',
+    align: 'left',
+    sortable: true,
+  },
+  { name: 'company', label: 'Empresa', field: 'company_name', align: 'left', sortable: true },
+  { name: 'actions', label: '', field: 'actions', align: 'right' },
+]
 
-const typeMap = {
-  road:        { label: 'Rodovia',     cls: 'badge-soft-warning'   },
-  bridge:      { label: 'Ponte',       cls: 'badge-soft-info'      },
-  building:    { label: 'Edifício',    cls: 'badge-soft-secondary' },
-  sanitation:  { label: 'Saneamento',  cls: 'badge-soft-success'   },
-  urban:       { label: 'Urbanização', cls: 'badge-soft-info'      },
-  other:       { label: 'Outro',       cls: 'badge-soft-secondary' },
-}
+const pagination = ref({ rowsPerPage: 8, sortBy: 'title' })
 
 const filtered = computed(() => {
   const q = search.value.toLowerCase().trim()
   if (!q) return constructions.value
-  return constructions.value.filter((c) => c.title.toLowerCase().includes(q))
+  return constructions.value.filter(
+    (c) =>
+      c.title.toLowerCase().includes(q) ||
+      typeOf(c.type).label.toLowerCase().includes(q) ||
+      statusOf(c.status).label.toLowerCase().includes(q),
+  )
 })
 
-function askDelete(construction) {
-  confirmTarget.value = { id: construction.id, name: construction.title }
+const inProgressCount = computed(
+  () => constructions.value.filter((c) => c.status === 'in_progress').length,
+)
+const completedCount = computed(
+  () => constructions.value.filter((c) => c.status === 'completed').length,
+)
+
+function goNew() {
+  router.push('/constructions/new')
 }
 
-async function confirmDelete() {
-  const { id, name } = confirmTarget.value
-  confirmTarget.value = null
+function goEdit(id) {
+  router.push(`/constructions/${id}/edit`)
+}
+
+function goDetail(id) {
+  router.push(`/constructions/${id}`)
+}
+
+function askDelete(construction) {
+  $q.dialog({
+    title: 'Confirmar exclusão',
+    message: `Excluir <strong>${construction.title}</strong>?`,
+    html: true,
+    dark: true,
+    persistent: true,
+    cancel: { label: 'Cancelar', flat: true, color: 'grey-5' },
+    ok: { label: 'Excluir', unelevated: true, color: 'negative', icon: 'delete' },
+  }).onOk(() => doDelete(construction))
+}
+
+async function doDelete({ id, title }) {
   const ok = await remove(id)
   if (ok !== null) {
     constructions.value = constructions.value.filter((c) => c.id !== id)
-    toast.add(`"${name}" excluída com sucesso.`)
+    $q.notify({
+      type: 'positive',
+      message: `"${title}" excluída.`,
+      icon: 'check_circle',
+      position: 'bottom-right',
+    })
   } else {
-    toast.add('Erro ao excluir obra.', 'error')
+    $q.notify({
+      type: 'negative',
+      message: 'Erro ao excluir obra.',
+      icon: 'error',
+      position: 'bottom-right',
+    })
   }
 }
 
-onMounted(fetchAll)
+onMounted(() => Promise.all([fetchAll(), fetchCompanyMap()]))
 </script>
 
 <template>
-  <AppCard icon="bi-cone-striped" title="Obras" :count="constructions.length">
-    <template #actions>
-      <div class="d-flex gap-2 align-items-center">
-        <SearchInput v-model="search" placeholder="Buscar obra..." />
-        <RouterLink to="/constructions/new" class="btn btn-light btn-sm text-nowrap">
-          <i class="bi bi-plus-lg me-1"></i>Nova
-        </RouterLink>
-      </div>
-    </template>
+  <div>
+    <HeroHeader
+      v-model:search="search"
+      icon="construction"
+      title="Obras"
+      subtitle="Gerencie as obras cadastradas"
+      search-placeholder="Buscar obra..."
+      new-label="Nova obra"
+      @new="goNew"
+    >
+      <template #stats>
+        <StatCard :value="constructions.length" label="Total" icon="construction" color="#818cf8" />
+        <StatCard :value="inProgressCount" label="Em Andamento" icon="pending" color="#38bdf8" />
+        <StatCard :value="completedCount" label="Concluídas" icon="check_circle" color="#34d399" />
+      </template>
+    </HeroHeader>
 
-    <div v-if="loading" class="table-responsive">
-      <table class="table table-hover align-middle mb-0">
-        <thead>
-          <tr>
-            <th class="ps-4">#</th>
-            <th>Título</th>
-            <th>Tipo</th>
-            <th>Status</th>
-            <th>Início</th>
-            <th>Término Previsto</th>
-            <th>Empresa</th>
-            <th class="text-end pe-4">Ações</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="i in 5" :key="i">
-            <td class="ps-4"><span class="skeleton" style="width: 24px; height: 14px"></span></td>
-            <td><span class="skeleton" style="width: 180px; height: 14px"></span></td>
-            <td><span class="skeleton" style="width: 90px; height: 20px; border-radius: 20px"></span></td>
-            <td><span class="skeleton" style="width: 100px; height: 20px; border-radius: 20px"></span></td>
-            <td><span class="skeleton" style="width: 80px; height: 14px"></span></td>
-            <td><span class="skeleton" style="width: 80px; height: 14px"></span></td>
-            <td><span class="skeleton" style="width: 120px; height: 14px"></span></td>
-            <td class="text-end pe-4">
-              <span class="skeleton" style="width: 64px; height: 28px; border-radius: 6px"></span>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+    <TableSkeleton v-if="loading" :columns="columns" :rows="6" />
+    <q-card v-else flat class="table-card">
+      <q-table
+        dark
+        flat
+        :rows="filtered"
+        :columns="columns"
+        :pagination="pagination"
+        class="list-table"
+        row-key="id"
+        @row-click="(_, row) => goDetail(row.id)"
+      >
+        <template #body-cell-title="props">
+          <q-td :props="props">
+            <div class="row items-center no-wrap title-cell">
+              <div
+                class="type-tile"
+                :style="{
+                  background: typeOf(props.row.type).color + '22',
+                  color: typeOf(props.row.type).color,
+                }"
+              >
+                <q-icon :name="typeOf(props.row.type).icon" size="16px" />
+              </div>
+              <span class="text-weight-medium">{{ props.row.title }}</span>
+            </div>
+          </q-td>
+        </template>
 
-    <div v-else class="table-responsive">
-      <table class="table table-hover align-middle mb-0">
-        <thead>
-          <tr>
-            <th class="ps-4">#</th>
-            <th>Título</th>
-            <th>Tipo</th>
-            <th>Status</th>
-            <th>Início</th>
-            <th>Término Previsto</th>
-            <th>Empresa</th>
-            <th class="text-end pe-4">Ações</th>
-          </tr>
-        </thead>
-        <TransitionGroup tag="tbody" name="list">
-          <tr v-if="filtered.length === 0" key="empty">
-            <td colspan="8" class="text-center py-5 text-muted">
-              <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+        <template #body-cell-type="props">
+          <q-td :props="props">
+            <SoftChip
+              :color="typeOf(props.row.type).color"
+              :icon="typeOf(props.row.type).icon"
+              :label="typeOf(props.row.type).label"
+            />
+          </q-td>
+        </template>
+
+        <template #body-cell-status="props">
+          <q-td :props="props">
+            <SoftChip
+              :color="statusOf(props.row.status).color"
+              :icon="statusOf(props.row.status).icon"
+              :label="statusOf(props.row.status).label"
+            />
+          </q-td>
+        </template>
+
+        <template #body-cell-start_date="props">
+          <q-td :props="props">
+            <span class="mono">{{ props.row.start_date ?? '—' }}</span>
+          </q-td>
+        </template>
+
+        <template #body-cell-expected_end_date="props">
+          <q-td :props="props">
+            <span class="mono">{{ props.row.expected_end_date ?? '—' }}</span>
+          </q-td>
+        </template>
+
+        <template #body-cell-company="props">
+          <q-td :props="props">
+            {{ companyMap[props.row.company] ?? '—' }}
+          </q-td>
+        </template>
+
+        <template #body-cell-actions="props">
+          <q-td :props="props">
+            <div class="row-actions">
+              <q-btn
+                flat
+                round
+                dense
+                icon="visibility"
+                color="indigo-3"
+                @click.stop="goDetail(props.row.id)"
+              >
+                <q-tooltip>Detalhe</q-tooltip>
+              </q-btn>
+              <q-btn
+                flat
+                round
+                dense
+                icon="edit"
+                color="indigo-3"
+                @click.stop="goEdit(props.row.id)"
+              >
+                <q-tooltip>Editar</q-tooltip>
+              </q-btn>
+              <q-btn
+                flat
+                round
+                dense
+                icon="delete"
+                color="negative"
+                @click.stop="askDelete(props.row)"
+              >
+                <q-tooltip>Excluir</q-tooltip>
+              </q-btn>
+            </div>
+          </q-td>
+        </template>
+
+        <template #no-data>
+          <div class="full-width column flex-center empty-state">
+            <div class="empty-tile">
+              <q-icon name="construction" size="32px" />
+            </div>
+            <p class="text-weight-medium q-mt-md q-mb-xs" style="color: var(--text-1)">
               {{ search ? 'Nenhuma obra encontrada.' : 'Nenhuma obra cadastrada.' }}
-              <div v-if="!search" class="mt-2">
-                <RouterLink to="/constructions/new" class="btn btn-primary btn-sm">
-                  Cadastrar a primeira
-                </RouterLink>
-              </div>
-            </td>
-          </tr>
-          <tr v-for="construction in filtered" :key="construction.id">
-            <td class="ps-4 text-muted">{{ construction.id }}</td>
-            <td class="fw-semibold">{{ construction.title }}</td>
-            <td><StatusBadge :value="construction.type" :map="typeMap" /></td>
-            <td><StatusBadge :value="construction.status" :map="statusMap" /></td>
-            <td>{{ construction.start_date ?? '—' }}</td>
-            <td>{{ construction.expected_end_date ?? '—' }}</td>
-            <td>{{ construction.company_name ?? construction.company }}</td>
-            <td class="text-end pe-4">
-              <div class="btn-group btn-group-sm" role="group">
-                <RouterLink
-                  :to="`/constructions/${construction.id}`"
-                  class="btn btn-outline-info"
-                  title="Detalhe"
-                >
-                  <i class="bi bi-eye"></i>
-                </RouterLink>
-                <RouterLink
-                  :to="`/constructions/${construction.id}/edit`"
-                  class="btn btn-outline-primary"
-                  title="Editar"
-                >
-                  <i class="bi bi-pencil"></i>
-                </RouterLink>
-                <button class="btn btn-outline-danger" title="Excluir" @click="askDelete(construction)">
-                  <i class="bi bi-trash"></i>
-                </button>
-              </div>
-            </td>
-          </tr>
-        </TransitionGroup>
-      </table>
-    </div>
-
-    <ConfirmModal
-      :show="!!confirmTarget"
-      :item-name="confirmTarget?.name"
-      @confirm="confirmDelete"
-      @cancel="confirmTarget = null"
-    />
-  </AppCard>
+            </p>
+            <q-btn
+              v-if="!search"
+              class="btn-accent q-mt-sm"
+              unelevated
+              no-caps
+              label="Cadastrar a primeira"
+              icon="add"
+              @click="goNew"
+            />
+          </div>
+        </template>
+      </q-table>
+    </q-card>
+  </div>
 </template>
+
+<style scoped>
+.table-card {
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card);
+  overflow: hidden;
+  margin-top: 20px;
+}
+
+.title-cell {
+  gap: 10px;
+}
+
+.type-tile {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.row-actions {
+  display: flex;
+  gap: 2px;
+  justify-content: flex-end;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+:deep(tr:hover) .row-actions {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .row-actions {
+    opacity: 1;
+  }
+}
+
+.empty-state {
+  padding: 48px;
+}
+
+.empty-tile {
+  width: 64px;
+  height: 64px;
+  border-radius: 18px;
+  background: var(--grad-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+}
+
+.mono {
+  font-variant-numeric: tabular-nums;
+}
+</style>
