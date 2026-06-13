@@ -18,7 +18,7 @@ function toggleCollapse() {
   localStorage.setItem('sidebarCollapsed', collapsed.value ? '1' : '0')
 }
 
-const { username, logout } = useAuth()
+const { username, isAdmin, logout } = useAuth()
 
 const isLoginPage = computed(() => route.path === '/login')
 
@@ -46,6 +46,10 @@ async function handleLogout() {
 <template>
   <div>
     <div v-if="isLoginPage">
+      <RouterView />
+    </div>
+
+    <div v-else-if="!isAdmin">
       <RouterView />
     </div>
 

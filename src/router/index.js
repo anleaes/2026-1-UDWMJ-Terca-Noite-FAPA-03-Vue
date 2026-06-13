@@ -2,6 +2,9 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { useAuth } from '../composables/useAuth'
 import LoginView from '../views/LoginView.vue'
 import Dashboard from '../views/Dashboard.vue'
+import ClientLayout from '../layouts/ClientLayout.vue'
+import ClientConstructionList from '../views/client/ClientConstructionList.vue'
+import ClientConstructionDetail from '../views/client/ClientConstructionDetail.vue'
 import CompanyList from '../views/companies/CompanyList.vue'
 import CompanyForm from '../views/companies/CompanyForm.vue'
 import CompanyEmployees from '../views/companies/CompanyEmployees.vue'
@@ -26,28 +29,28 @@ const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
     { path: '/login', component: LoginView },
-    { path: '/', component: Dashboard },
-    { path: '/companies', component: CompanyList },
-    { path: '/companies/new', component: CompanyForm },
-    { path: '/companies/:id/edit', component: CompanyForm },
-    { path: '/companies/:companyId/employees', component: CompanyEmployees },
-    { path: '/companies/:companyId/employees/new', component: EmployeeForm },
-    { path: '/companies/:companyId/employees/:id/edit', component: EmployeeForm },
-    { path: '/companies/:companyId/equipments', component: CompanyEquipments },
-    { path: '/companies/:companyId/equipments/new', component: EquipmentForm },
-    { path: '/companies/:companyId/equipments/:id/edit', component: EquipmentForm },
-    { path: '/locations', component: LocationList },
-    { path: '/locations/new', component: LocationForm },
-    { path: '/locations/:id/edit', component: LocationForm },
-    { path: '/citizens', component: CitizenList },
-    { path: '/citizens/new', component: CitizenForm },
-    { path: '/citizens/:id/edit', component: CitizenForm },
-    { path: '/employees', component: EmployeeList },
-    { path: '/employees/new', component: EmployeeForm },
-    { path: '/employees/:id/edit', component: EmployeeForm },
-    { path: '/equipments', component: EquipmentList },
-    { path: '/equipments/new', component: EquipmentForm },
-    { path: '/equipments/:id/edit', component: EquipmentForm },
+    { path: '/', component: Dashboard, meta: { adminOnly: true } },
+    { path: '/companies', component: CompanyList, meta: { adminOnly: true } },
+    { path: '/companies/new', component: CompanyForm, meta: { adminOnly: true } },
+    { path: '/companies/:id/edit', component: CompanyForm, meta: { adminOnly: true } },
+    { path: '/companies/:companyId/employees', component: CompanyEmployees, meta: { adminOnly: true } },
+    { path: '/companies/:companyId/employees/new', component: EmployeeForm, meta: { adminOnly: true } },
+    { path: '/companies/:companyId/employees/:id/edit', component: EmployeeForm, meta: { adminOnly: true } },
+    { path: '/companies/:companyId/equipments', component: CompanyEquipments, meta: { adminOnly: true } },
+    { path: '/companies/:companyId/equipments/new', component: EquipmentForm, meta: { adminOnly: true } },
+    { path: '/companies/:companyId/equipments/:id/edit', component: EquipmentForm, meta: { adminOnly: true } },
+    { path: '/locations', component: LocationList, meta: { adminOnly: true } },
+    { path: '/locations/new', component: LocationForm, meta: { adminOnly: true } },
+    { path: '/locations/:id/edit', component: LocationForm, meta: { adminOnly: true } },
+    { path: '/citizens', component: CitizenList, meta: { adminOnly: true } },
+    { path: '/citizens/new', component: CitizenForm, meta: { adminOnly: true } },
+    { path: '/citizens/:id/edit', component: CitizenForm, meta: { adminOnly: true } },
+    { path: '/employees', component: EmployeeList, meta: { adminOnly: true } },
+    { path: '/employees/new', component: EmployeeForm, meta: { adminOnly: true } },
+    { path: '/employees/:id/edit', component: EmployeeForm, meta: { adminOnly: true } },
+    { path: '/equipments', component: EquipmentList, meta: { adminOnly: true } },
+    { path: '/equipments/new', component: EquipmentForm, meta: { adminOnly: true } },
+    { path: '/equipments/:id/edit', component: EquipmentForm, meta: { adminOnly: true } },
     { path: '/constructions', component: ConstructionList },
     { path: '/constructions/new', component: ConstructionForm },
     { path: '/constructions/:id/edit', component: ConstructionForm },
@@ -59,14 +62,23 @@ const router = createRouter({
     { path: '/constructions/:id/contracts/new', component: ContractForm },
     { path: '/constructions/:id/contracts/:contractId/edit', component: ContractForm },
     { path: '/constructions/:id', component: ConstructionDetail },
+    {
+      path: '/client',
+      component: ClientLayout,
+      children: [
+        { path: '', component: ClientConstructionList },
+        { path: 'constructions/:id', component: ClientConstructionDetail },
+      ],
+    },
   ],
 })
 
 router.beforeEach(async (to) => {
   if (to.path === '/login') return true
-  const { checkAuth } = useAuth()
+  const { checkAuth, isAdmin } = useAuth()
   const ok = await checkAuth()
   if (!ok) return '/login'
+  if (to.meta.adminOnly && !isAdmin.value) return '/client'
 })
 
 export default router

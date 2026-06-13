@@ -1,6 +1,7 @@
 import { ref } from 'vue'
 
 const isAuthenticated = ref(false)
+const isAdmin = ref(false)
 const username = ref('')
 let checked = false
 
@@ -13,6 +14,7 @@ export function useAuth() {
       if (res.ok) {
         const data = await res.json()
         isAuthenticated.value = data.ok
+        isAdmin.value = data.is_admin ?? false
         username.value = data.username ?? ''
       } else {
         isAuthenticated.value = false
@@ -33,6 +35,7 @@ export function useAuth() {
     const data = await res.json()
     if (res.ok) {
       isAuthenticated.value = true
+      isAdmin.value = data.is_admin ?? false
       username.value = data.username
       checked = true
       return null
@@ -46,9 +49,10 @@ export function useAuth() {
     } catch {
     }
     isAuthenticated.value = false
+    isAdmin.value = false
     username.value = ''
     checked = false
   }
 
-  return { isAuthenticated, username, checkAuth, login, logout }
+  return { isAuthenticated, isAdmin, username, checkAuth, login, logout }
 }
