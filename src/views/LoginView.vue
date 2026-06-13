@@ -4,11 +4,12 @@ import { useRouter } from 'vue-router'
 import { useAuth } from '../composables/useAuth'
 
 const router = useRouter()
-const { login } = useAuth()
+const { login, isAdmin } = useAuth()
 
 const form = ref({ username: '', password: '' })
 const error = ref('')
 const loading = ref(false)
+const showPassword = ref(false)
 
 async function submit() {
   loading.value = true
@@ -18,100 +19,144 @@ async function submit() {
   if (err) {
     error.value = err
   } else {
-    router.push('/')
+    router.push(isAdmin.value ? '/' : '/client')
   }
 }
 </script>
 
 <template>
-  <div class="login-page d-flex justify-content-center align-items-center vh-100">
-    <div class="login-card w-100 mx-3">
-      <div class="login-card-header text-center text-white">
-        <i class="bi bi-building-fill fs-2 d-block mb-2"></i>
-        <h4 class="mb-0 fw-bold">InfraApp</h4>
-        <p class="mb-0 small opacity-75 mt-1">Sistema de Infraestrutura</p>
+  <div class="login-page">
+    <div class="login-glow login-glow--one" />
+    <div class="login-glow login-glow--two" />
+
+    <q-card flat class="login-card">
+      <div class="login-hero">
+        <div class="login-hero-glow" />
+        <div class="brand-tile">
+          <q-icon name="apartment" size="30px" />
+        </div>
+        <h1 class="brand-name">InfraApp</h1>
+        <p class="brand-sub">Sistema de Infraestrutura</p>
       </div>
 
-      <div class="login-card-body p-4">
-        <h6 class="text-center text-muted mb-4 fw-semibold">Acesse sua conta</h6>
+      <q-form class="login-body" @submit.prevent="submit" novalidate>
+        <p class="login-title">Acesse sua conta</p>
 
-        <Transition name="slide-down">
-          <div v-if="error" class="alert alert-danger py-2 mb-3 d-flex align-items-center gap-2">
-            <i class="bi bi-exclamation-circle-fill flex-shrink-0"></i>
-            <span>{{ error }}</span>
-          </div>
-        </Transition>
+        <q-slide-transition>
+          <q-banner v-if="error" dense rounded class="login-error">
+            <template #avatar>
+              <q-icon name="error" color="negative" />
+            </template>
+            {{ error }}
+          </q-banner>
+        </q-slide-transition>
 
-        <form @submit.prevent="submit" novalidate>
-          <div class="mb-3">
-            <label for="username" class="form-label fw-semibold small">
-              <i class="bi bi-person me-1"></i>Usuário
-            </label>
-            <input
-              v-model="form.username"
-              id="username"
-              type="text"
-              class="form-control form-control-lg"
-              placeholder="Digite seu usuário"
-              autocomplete="username"
-              autofocus
-              required
+        <q-input
+          v-model="form.username"
+          outlined
+          dark
+          color="indigo-3"
+          label="Usuário"
+          autocomplete="username"
+          autofocus
+        >
+          <template #prepend><q-icon name="person" /></template>
+        </q-input>
+
+        <q-input
+          v-model="form.password"
+          outlined
+          dark
+          color="indigo-3"
+          label="Senha"
+          :type="showPassword ? 'text' : 'password'"
+          autocomplete="current-password"
+        >
+          <template #prepend><q-icon name="lock" /></template>
+          <template #append>
+            <q-icon
+              :name="showPassword ? 'visibility_off' : 'visibility'"
+              class="cursor-pointer"
+              @click="showPassword = !showPassword"
             />
-          </div>
+          </template>
+        </q-input>
 
-          <div class="mb-4">
-            <label for="password" class="form-label fw-semibold small">
-              <i class="bi bi-lock me-1"></i>Senha
-            </label>
-            <input
-              v-model="form.password"
-              id="password"
-              type="password"
-              class="form-control form-control-lg"
-              placeholder="Digite sua senha"
-              autocomplete="current-password"
-              required
-            />
-          </div>
+        <q-btn
+          type="submit"
+          class="btn-accent login-btn"
+          unelevated
+          no-caps
+          size="lg"
+          :loading="loading"
+          :disable="!form.username || !form.password"
+          label="Entrar"
+          icon-right="login"
+        >
+          <template #loading>
+            <q-spinner-dots />
+          </template>
+        </q-btn>
 
-          <button
-            type="submit"
-            class="btn btn-primary btn-lg w-100"
-            :disabled="loading || !form.username || !form.password"
-          >
-            <span v-if="loading" class="spinner-border spinner-border-sm me-2" role="status"></span>
-            <i v-else class="bi bi-box-arrow-in-right me-2"></i>
-            {{ loading ? 'Entrando...' : 'Entrar' }}
-          </button>
-        </form>
-      </div>
-
-      <div class="login-card-footer text-center text-muted small py-3">
-        <i class="bi bi-shield-lock me-1"></i>Acesso restrito a usuários autorizados
-      </div>
-    </div>
+        <div class="login-foot">
+          <q-icon name="shield" size="14px" />
+          <span>Acesso restrito a usuários autorizados</span>
+        </div>
+      </q-form>
+    </q-card>
   </div>
 </template>
 
 <style scoped>
 .login-page {
-  background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #0d6efd22 100%);
+  position: relative;
   min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--bg-page);
+  overflow: hidden;
+}
+
+.login-glow {
+  position: absolute;
+  width: 520px;
+  height: 520px;
+  border-radius: 50%;
+  filter: blur(40px);
+  pointer-events: none;
+}
+
+.login-glow--one {
+  top: -180px;
+  left: -140px;
+  background: var(--glow-accent);
+}
+
+.login-glow--two {
+  bottom: -200px;
+  right: -160px;
+  background: radial-gradient(circle, rgba(139, 92, 246, 0.4), transparent 70%);
 }
 
 .login-card {
+  position: relative;
+  z-index: 1;
+  width: 100%;
   max-width: 420px;
-  background: #fff;
-  border-radius: 16px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
   overflow: hidden;
-  animation: loginFadeIn 0.4s ease-out;
+  animation: loginFadeIn 0.45s ease-out;
 }
 
 @keyframes loginFadeIn {
   from {
     opacity: 0;
-    transform: translateY(20px);
+    transform: translateY(18px);
   }
   to {
     opacity: 1;
@@ -119,34 +164,88 @@ async function submit() {
   }
 }
 
-.login-card-header {
-  background: linear-gradient(135deg, #0d6efd, #6610f2);
-  padding: 2rem 1.5rem 1.5rem;
+.login-hero {
+  position: relative;
+  padding: 36px 24px 28px;
+  text-align: center;
+  background: var(--grad-accent);
+  overflow: hidden;
 }
 
-.login-card-body {
-  padding: 1.5rem;
+.login-hero-glow {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% -20%, rgba(255, 255, 255, 0.35), transparent 60%);
+  pointer-events: none;
 }
 
-.login-card-footer {
-  background: #f8f9fa;
-  border-top: 1px solid #e9ecef;
+.brand-tile {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 18px;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  box-shadow: 0 10px 30px rgba(8, 10, 20, 0.35);
 }
 
-.form-control-lg {
-  border-radius: 10px;
-  border-color: #dee2e6;
-  transition: border-color 0.2s, box-shadow 0.2s;
-}
-
-.form-control-lg:focus {
-  border-color: #0d6efd;
-  box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.15);
-}
-
-.btn-lg {
-  border-radius: 10px;
-  font-weight: 600;
+.brand-name {
+  position: relative;
+  margin: 0;
+  font-size: 1.7rem;
+  font-weight: 700;
   letter-spacing: 0.02em;
+  color: #fff;
+}
+
+.brand-sub {
+  position: relative;
+  margin: 4px 0 0;
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.login-body {
+  padding: 30px 28px 26px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.login-title {
+  margin: 0 0 2px;
+  text-align: center;
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--text-2);
+}
+
+.login-error {
+  background: rgba(251, 113, 133, 0.12);
+  border: 1px solid rgba(251, 113, 133, 0.3);
+  color: #fecdd3;
+  border-radius: 12px;
+}
+
+.login-btn {
+  margin-top: 4px;
+  height: 50px;
+  font-weight: 600;
+  border-radius: 14px;
+}
+
+.login-foot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: 0.78rem;
+  color: var(--text-3);
 }
 </style>
