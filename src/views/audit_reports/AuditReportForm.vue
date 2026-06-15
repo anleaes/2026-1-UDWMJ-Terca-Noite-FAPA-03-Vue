@@ -1,13 +1,13 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { useRoute, useRouter, RouterLink } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
+import { useQuasar } from 'quasar'
 import { useCrud } from '../../composables/useCrud'
-import { useToast } from '../../composables/useToast'
-import AppCard from '../../components/AppCard.vue'
+import FormHeader from '../../components/ui/FormHeader.vue'
 
 const route = useRoute()
 const router = useRouter()
-const toast = useToast()
+const $q = useQuasar()
 
 const constructionId = computed(() => Number(route.params.id))
 const inspectionId = computed(() => Number(route.params.inspectionId))
@@ -20,99 +20,165 @@ const existingId = ref(null)
 const isEdit = computed(() => !!existingId.value)
 const pageLoading = ref(true)
 
+const backTo = computed(() => `/constructions/${constructionId.value}`)
+
 onMounted(async () => {
   const allReports = await fetch('/api/audit-reports/').then((r) => r.json())
   const found = allReports.find((r) => r.inspection === inspectionId.value) ?? null
   if (found) {
     existingId.value = found.id
-    form.value = { number: found.number, issue_date: found.issue_date, conclusion: found.conclusion, is_approved: found.is_approved }
+    form.value = {
+      number: found.number,
+      issue_date: found.issue_date,
+      conclusion: found.conclusion,
+      is_approved: found.is_approved,
+    }
   }
   pageLoading.value = false
 })
+
+const apiErrors = computed(() => {
+  if (!error.value) return []
+  return Object.entries(error.value).map(
+    ([field, msgs]) => `${field}: ${Array.isArray(msgs) ? msgs.join(', ') : msgs}`,
+  )
+})
+
+const required = (v) => (!!v && String(v).trim().length > 0) || 'Campo obrigatório'
 
 async function submit() {
   const payload = { ...form.value, inspection: inspectionId.value }
   const data = await save(payload, existingId.value)
   if (data) {
-    toast.add(isEdit.value ? 'Laudo atualizado.' : 'Laudo emitido.')
-    router.push(`/constructions/${constructionId.value}`)
+    $q.notify({
+      type: 'positive',
+      message: isEdit.value ? 'Laudo atualizado.' : 'Laudo emitido.',
+      icon: 'check_circle',
+      position: 'bottom-right',
+    })
+    router.push(backTo.value)
   }
 }
 </script>
 
 <template>
-  <div class="row justify-content-center">
-    <div class="col-lg-8">
-      <AppCard
-        icon="bi-file-earmark-check"
+  <div class="form-page">
+    <q-card flat class="form-card">
+      <FormHeader
+        icon="fact_check"
         :title="isEdit ? 'Editar Laudo de Auditoria' : 'Emitir Laudo de Auditoria'"
-      >
-        <div v-if="pageLoading" class="p-4">
-          <div class="row g-3">
-            <div v-for="i in 4" :key="i" class="col-md-6">
-              <span class="skeleton d-block mb-2" style="width: 80px; height: 14px"></span>
-              <span class="skeleton d-block" style="height: 38px; border-radius: 6px"></span>
+        subtitle="Preencha os dados do laudo de auditoria"
+        :back-to="backTo"
+      />
+
+      <div v-if="pageLoading" class="form-body">
+        <q-skeleton type="text" width="140px" class="q-mb-lg" />
+        <div class="row q-col-gutter-md">
+          <div class="col-12 col-md-6"><q-skeleton height="56px" /></div>
+          <div class="col-12 col-md-6"><q-skeleton height="56px" /></div>
+          <div class="col-12"><q-skeleton height="130px" /></div>
+          <div class="col-12 col-md-6"><q-skeleton height="56px" /></div>
+        </div>
+      </div>
+
+      <q-form v-else @submit.prevent="submit" class="form-body">
+        <div class="section-label">Dados do Laudo</div>
+
+        <div class="row q-col-gutter-md">
+          <div class="col-12 col-md-6">
+            <q-input
+              v-model="form.number"
+              dark
+              label="Número do Laudo *"
+              outlined
+              color="indigo-3"
+              placeholder="Ex: LAU-2024-001"
+              :rules="[required]"
+              lazy-rules
+            >
+              <template #prepend><q-icon name="tag" /></template>
+            </q-input>
+          </div>
+
+          <div class="col-12 col-md-6">
+            <q-input
+              v-model="form.issue_date"
+              dark
+              label="Data de Emissão *"
+              outlined
+              color="indigo-3"
+              type="date"
+              :rules="[required]"
+              lazy-rules
+            >
+              <template #prepend><q-icon name="calendar_today" /></template>
+            </q-input>
+          </div>
+
+          <div class="col-12">
+            <q-input
+              v-model="form.conclusion"
+              dark
+              label="Conclusão *"
+              outlined
+              color="indigo-3"
+              type="textarea"
+              rows="5"
+              placeholder="Descreva a conclusão da auditoria..."
+              :rules="[required]"
+              lazy-rules
+            >
+              <template #prepend><q-icon name="rate_review" /></template>
+            </q-input>
+          </div>
+
+          <div class="col-12 col-md-6">
+            <div class="toggle-box" :class="{ on: form.is_approved }">
+              <div class="toggle-info">
+                <q-icon name="verified" size="22px" />
+                <div>
+                  <div class="toggle-title">Aprovado</div>
+                  <div class="toggle-hint">O laudo aprova a obra?</div>
+                </div>
+              </div>
+              <q-toggle v-model="form.is_approved" color="indigo-4" size="lg" />
             </div>
           </div>
         </div>
 
-        <div v-else class="p-4">
-          <form @submit.prevent="submit" novalidate>
-            <h6 class="text-uppercase text-muted mb-3 small fw-semibold">Dados do Laudo</h6>
-            <div class="row g-3">
-              <div class="col-md-6">
-                <label class="form-label">Número do Laudo <span class="text-danger">*</span></label>
-                <input v-model="form.number" type="text" class="form-control" required placeholder="Ex: LAU-2024-001" />
-              </div>
+        <q-slide-transition>
+          <q-banner v-if="apiErrors.length" class="api-error q-mt-lg" rounded>
+            <template #avatar><q-icon name="error" color="negative" /></template>
+            <div class="text-weight-medium" style="color: #fb7185">Verifique os campos:</div>
+            <ul class="q-my-xs q-pl-md">
+              <li v-for="(msg, i) in apiErrors" :key="i">{{ msg }}</li>
+            </ul>
+          </q-banner>
+        </q-slide-transition>
 
-              <div class="col-md-6">
-                <label class="form-label">Data de Emissão <span class="text-danger">*</span></label>
-                <input v-model="form.issue_date" type="date" class="form-control" required />
-              </div>
-
-              <div class="col-12">
-                <label class="form-label">Conclusão <span class="text-danger">*</span></label>
-                <textarea v-model="form.conclusion" class="form-control" rows="5" required placeholder="Descreva a conclusão da auditoria..."></textarea>
-              </div>
-
-              <div class="col-12">
-                <div class="form-check form-switch">
-                  <input v-model="form.is_approved" type="checkbox" class="form-check-input" id="isApproved" role="switch" />
-                  <label class="form-check-label" for="isApproved">Aprovado</label>
-                </div>
-              </div>
-            </div>
-
-            <Transition name="slide-down">
-              <div v-if="error" class="alert alert-danger mt-4">
-                <strong><i class="bi bi-exclamation-circle me-1"></i>Verifique os campos:</strong>
-                <ul class="mb-0 mt-1">
-                  <li v-for="(msgs, field) in error" :key="field">
-                    {{ field }}: {{ Array.isArray(msgs) ? msgs.join(', ') : msgs }}
-                  </li>
-                </ul>
-              </div>
-            </Transition>
-
-            <div class="d-flex justify-content-end gap-2 mt-4">
-              <RouterLink :to="`/constructions/${constructionId}`" class="btn btn-outline-secondary">Cancelar</RouterLink>
-              <a
-                v-if="isEdit"
-                :href="`/api/audit-reports/${constructionId}/${inspectionId}/export-pdf/`"
-                target="_blank"
-                class="btn btn-outline-danger"
-              >
-                <i class="bi bi-file-earmark-pdf me-1"></i>Exportar PDF
-              </a>
-              <button type="submit" class="btn btn-primary" :disabled="loading">
-                <span v-if="loading" class="spinner-border spinner-border-sm me-1"></span>
-                <i v-else class="bi bi-check2-circle me-1"></i>
-                {{ isEdit ? 'Atualizar' : 'Emitir Laudo' }}
-              </button>
-            </div>
-          </form>
+        <div class="form-actions">
+          <q-btn flat no-caps color="grey-5" label="Cancelar" :to="backTo" />
+          <q-btn
+            v-if="isEdit"
+            flat
+            no-caps
+            icon="picture_as_pdf"
+            label="Exportar PDF"
+            color="negative"
+            :href="`/api/audit-reports/${constructionId}/${inspectionId}/export-pdf/`"
+            target="_blank"
+          />
+          <q-btn
+            type="submit"
+            unelevated
+            no-caps
+            icon="check"
+            :label="isEdit ? 'Atualizar' : 'Emitir Laudo'"
+            class="btn-accent"
+            :loading="loading"
+          />
         </div>
-      </AppCard>
-    </div>
+      </q-form>
+    </q-card>
   </div>
 </template>
